@@ -154,20 +154,20 @@ export default function Balances() {
 
       setProcessingCard(true);
       try {
-        // Process card payment
-        const { data, error } = await supabase.functions.invoke('process-payment', {
+        // Process card payment via Sola/Cardknox
+        const { data, error } = await supabase.functions.invoke('process-sola-payment', {
           body: {
             amount,
             cardNumber: cleanCard,
-            expiry: paymentForm.cardExpiry,
-            cvv: paymentForm.cardCvv,
+            cardExpiry: paymentForm.cardExpiry.replace('/', ''),
+            cardCvv: paymentForm.cardCvv,
+            customerId: paymentDialog.customer.id,
             customerName: paymentDialog.customer.name,
-            description: `Balance payment for ${paymentDialog.customer.name}`,
           },
         });
 
         if (error || !data?.success) {
-          toast.error(data?.error || 'Card payment failed');
+          toast.error(data?.message || 'Card payment failed');
           setProcessingCard(false);
           return;
         }

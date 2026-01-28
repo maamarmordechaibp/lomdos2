@@ -189,7 +189,7 @@ export default function CustomerDetail() {
 
     setIsProcessingPayment(true);
     try {
-      // If card payment, process through payment gateway
+      // If card payment, process through Sola/Cardknox payment gateway
       if (paymentMethod === 'card') {
         const cleanCardNumber = cardNumber.replace(/\s/g, '');
         if (cleanCardNumber.length < 15) {
@@ -202,22 +202,19 @@ export default function CustomerDetail() {
           throw new Error('Invalid CVV');
         }
 
-        const [expMonth, expYear] = cardExpiry.split('/');
-        const { data: paymentResult, error: processError } = await supabase.functions.invoke('process-payment', {
+        const { data: paymentResult, error: processError } = await supabase.functions.invoke('process-sola-payment', {
           body: {
             amount: amount,
-            card: {
-              number: cleanCardNumber,
-              exp_month: parseInt(expMonth),
-              exp_year: parseInt('20' + expYear),
-              cvv: cardCvv,
-            },
-            description: `Balance payment from ${customer?.name}`,
+            cardNumber: cleanCardNumber,
+            cardExpiry: cardExpiry.replace('/', ''),
+            cardCvv: cardCvv,
+            customerId: id,
+            customerName: customer?.name,
           },
         });
 
         if (processError || !paymentResult?.success) {
-          throw new Error(paymentResult?.error || processError?.message || 'Payment processing failed');
+          throw new Error(paymentResult?.message || processError?.message || 'Payment processing failed');
         }
       }
 

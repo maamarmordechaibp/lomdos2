@@ -7,10 +7,18 @@ const corsHeaders = {
 };
 
 interface NotifyRequest {
-  customer_id: string;
-  customer_order_id: string;
-  notification_type: "order_ready" | "order_received" | "custom";
+  // Order notification fields
+  customer_id?: string;
+  customer_order_id?: string;
+  notification_type?: "order_ready" | "order_received" | "custom" | "payment_reminder";
   custom_message?: string;
+  // Balance reminder fields (alternative format)
+  customerId?: string;
+  type?: string;
+  method?: 'phone' | 'sms' | 'email';
+  phone?: string;
+  customerName?: string;
+  message?: string;
 }
 
 serve(async (req) => {
@@ -24,17 +32,82 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     
     // Get SignalWire credentials from environment (set via Supabase secrets)
-    const signalwireSpaceUrl = Deno.env.get("SIGNALWIRE_SPACE_URL")!;
-    const signalwireProjectId = Deno.env.get("SIGNALWIRE_PROJECT_ID")!;
-    const signalwireApiToken = Deno.env.get("SIGNALWIRE_API_TOKEN")!;
-    const signalwireFromNumber = Deno.env.get("SIGNALWIRE_FROM_NUMBER")!;
+    const signalwireSpaceUrl = Deno.env.get("SIGNALWIRE_SPACE_URL");
+    const signalwireProjectId = Deno.env.get("SIGNALWIRE_PROJECT_ID");
+    const signalwireApiToken = Deno.env.get("SIGNALWIRE_API_TOKEN");
+    const signalwireFromNumber = Deno.env.get("SIGNALWIRE_FROM_NUMBER");
     
     // Get Resend API key for emails
-    const resendApiKey = Deno.env.get("RESEND_API_KEY")!;
+    const resendApiKey = Deno.env.get("RESEND_API_KEY");
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    const { customer_id, customer_order_id, notification_type, custom_message }: NotifyRequest = await req.json();
+    const body: NotifyRequest = await req.json();
+    
+    // Handle balance reminder format (customerId, type, method, phone, message)
+    if (body.type === 'payment_reminder' || body.customerId) {
+      const customerId = body.customerId || body.customer_id;
+      const phone = body.phone;
+      const message = body.message;
+      const method = body.method || 'phone';
+      
+      if (!customerId) {
+        throw new Error("Customer ID is required");
+      }
+      if (!message) {
+        throw new Error("Message is required");
+      }
+      
+      // Format phone number
+      let formattedPhone = phone?.replace(/\D/g, '') || '';
+      if (formattedPhone && !formattedPhone.startsWith('1') && formattedPhone.length === 10) {
+        formattedPhone = '1' + formattedPhone;
+      }
+      if (formattedPhone && !formattedPhone.startsWith('+')) {
+        formattedPhone = '+' + formattedPhone;
+      }
+      
+      if (!formattedPhone) {
+        throw new Error("Valid phone number is required");
+      }
+      
+      if (!signalwireSpaceUrl || !signalwireProjectId || !signalwireApiToken || !signalwireFromNumber) {
+        throw new Error("SignalWire not configured. Add SIGNALWIRE_* secrets in Supabase.");
+      }
+      
+      console.log(`Sending ${method} reminder to ${formattedPhone}`);
+      
+      let result: any = null;
+      if (method === 'phone') {
+        result = await makePhoneCall({
+          signalwireSpaceUrl,
+          signalwireProjectId,
+          signalwireApiToken,
+          fromNumber: signalwireFromNumber,
+          toNumber: formattedPhone,
+          message,
+        });
+      } else {
+        result = await sendSMS({
+          signalwireSpaceUrl,
+          signalwireProjectId,
+          signalwireApiToken,
+          fromNumber: signalwireFromNumber,
+          toNumber: formattedPhone,
+          message,
+        });
+      }
+      
+      console.log("Result:", JSON.stringify(result));
+      
+      return new Response(
+        JSON.stringify({ success: true, result }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    
+    // Original order notification flow
+    const { customer_id, customer_order_id, notification_type, custom_message } = body;
 
     // Get store settings
     const { data: settings, error: settingsError } = await supabase
@@ -103,6 +176,12 @@ serve(async (req) => {
 
     console.log(`Notification request: type=${notification_type}, method=${customer.notification_preference}, phone=${formattedPhone}, email=${customer.email}`);
 
+    // Validate SignalWire credentials for phone/sms
+    if ((customer.notification_preference === "phone" || customer.notification_preference === "sms") && 
+        (!signalwireSpaceUrl || !signalwireProjectId || !signalwireApiToken || !signalwireFromNumber)) {
+      throw new Error("SignalWire not configured. Add SIGNALWIRE_* secrets in Supabase.");
+    }
+
     // Send notification based on customer preference
     if (customer.notification_preference === "phone") {
       if (!formattedPhone) {
@@ -111,10 +190,10 @@ serve(async (req) => {
       // Make phone call using SignalWire
       console.log(`Making phone call to ${formattedPhone}`);
       result = await makePhoneCall({
-        signalwireSpaceUrl,
-        signalwireProjectId,
-        signalwireApiToken,
-        fromNumber: signalwireFromNumber,
+        signalwireSpaceUrl: signalwireSpaceUrl!,
+        signalwireProjectId: signalwireProjectId!,
+        signalwireApiToken: signalwireApiToken!,
+        fromNumber: signalwireFromNumber!,
         toNumber: formattedPhone,
         message,
       });
@@ -126,10 +205,10 @@ serve(async (req) => {
       // Send SMS using SignalWire
       console.log(`Sending SMS to ${formattedPhone}`);
       result = await sendSMS({
-        signalwireSpaceUrl,
-        signalwireProjectId,
-        signalwireApiToken,
-        fromNumber: signalwireFromNumber,
+        signalwireSpaceUrl: signalwireSpaceUrl!,
+        signalwireProjectId: signalwireProjectId!,
+        signalwireApiToken: signalwireApiToken!,
+        fromNumber: signalwireFromNumber!,
         toNumber: formattedPhone,
         message,
       });
@@ -139,11 +218,14 @@ serve(async (req) => {
       if (!customer.email) {
         throw new Error("Customer does not have an email address");
       }
+      if (!resendApiKey) {
+        throw new Error("Resend API key not configured. Add RESEND_API_KEY secret in Supabase.");
+      }
       console.log(`Sending email to ${customer.email}`);
       result = await sendEmail({
         resendApiKey,
         to: customer.email,
-        subject: getEmailSubject(notification_type, bookTitle),
+        subject: getEmailSubject(notification_type!, bookTitle),
         message,
         customerName: customer.name,
       });
@@ -161,7 +243,7 @@ serve(async (req) => {
       message,
       status: result?.id || result?.sid ? "sent" : "failed",
       response: result,
-    });
+    }).catch(() => {}); // Don't fail if logging fails
 
     return new Response(
       JSON.stringify({ success: true, result }),

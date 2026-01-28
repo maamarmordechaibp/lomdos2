@@ -193,15 +193,13 @@ export default function Balances() {
       // Cash/Check/Other - just record the payment
       await createPayment.mutateAsync({
         customer_id: paymentDialog.customer.id,
-        order_id: null,
         amount,
         payment_method: paymentForm.method,
-        payment_type: 'balance',
-        transaction_id: null,
         notes: paymentForm.notes || null,
       });
       
       setPaymentDialog({ open: false, customer: null });
+      setPaymentForm({ amount: '', method: 'cash', notes: '', cardNumber: '', cardExpiry: '', cardCvv: '' });
     }
   };
 

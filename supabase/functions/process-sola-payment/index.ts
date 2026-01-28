@@ -141,7 +141,7 @@ serve(async (req) => {
       // Record the payment in database if customerId is provided
       if (customerId) {
         try {
-          // Insert payment record
+          // Insert payment record - only use columns that exist
           const { error: paymentError } = await supabase
             .from('customer_payments')
             .insert({
@@ -149,7 +149,6 @@ serve(async (req) => {
               order_id: orderId || null,
               amount: amount,
               payment_method: 'card',
-              payment_type: 'balance',
               transaction_id: result.xRefNum,
               notes: `Card payment - Ref: ${result.xRefNum}`,
             });

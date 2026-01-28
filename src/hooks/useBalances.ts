@@ -74,11 +74,27 @@ export function useCreateCustomerPayment() {
   const queryClient = useQueryClient();
   
   return useMutation({
-    mutationFn: async (payment: Omit<CustomerPayment, 'id' | 'created_at' | 'customer' | 'order'>) => {
-      // Create the payment
+    mutationFn: async (payment: {
+      customer_id: string;
+      order_id?: string | null;
+      amount: number;
+      payment_method: 'cash' | 'card' | 'check' | 'other';
+      transaction_id?: string | null;
+      notes?: string | null;
+    }) => {
+      // Create the payment - only include fields that exist in DB
+      const paymentData: Record<string, any> = {
+        customer_id: payment.customer_id,
+        amount: payment.amount,
+        payment_method: payment.payment_method,
+      };
+      if (payment.order_id) paymentData.order_id = payment.order_id;
+      if (payment.transaction_id) paymentData.transaction_id = payment.transaction_id;
+      if (payment.notes) paymentData.notes = payment.notes;
+      
       const { data, error } = await supabase
         .from('customer_payments')
-        .insert(payment as any)
+        .insert(paymentData)
         .select()
         .single();
       if (error) throw error;

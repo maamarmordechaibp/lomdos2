@@ -115,15 +115,12 @@ export interface CustomerOrderItem {
   order?: CustomerOrder;
 }
 
-export type PaymentType = 'deposit' | 'partial' | 'full' | 'balance';
-
 export interface CustomerPayment {
   id: string;
   customer_id: string;
   order_id: string | null;
   amount: number;
   payment_method: 'cash' | 'card' | 'check' | 'other';
-  payment_type: PaymentType;
   transaction_id: string | null;
   notes: string | null;
   created_at: string;

@@ -282,10 +282,8 @@ export default function CustomerDetail() {
         .from('customer_payments')
         .insert({
           customer_id: id,
-          order_id: null,
           amount,
           payment_method: paymentMethod,
-          payment_type: 'balance',
           notes: paymentNotes || null,
         });
       if (paymentError) throw paymentError;
@@ -409,14 +407,12 @@ export default function CustomerDetail() {
               <th>Date</th>
               <th>Amount</th>
               <th>Method</th>
-              <th>Type</th>
             </tr>
             ${payments?.map(p => `
               <tr>
                 <td>${format(new Date(p.created_at), 'MM/dd/yy')}</td>
                 <td>$${p.amount.toFixed(2)}</td>
                 <td>${p.payment_method}</td>
-                <td>${p.payment_type}</td>
               </tr>
             `).join('')}
           </table>
@@ -722,7 +718,6 @@ export default function CustomerDetail() {
                         <TableHead>Date</TableHead>
                         <TableHead>Amount</TableHead>
                         <TableHead>Method</TableHead>
-                        <TableHead>Type</TableHead>
                         <TableHead>Order</TableHead>
                         <TableHead>Notes</TableHead>
                       </TableRow>
@@ -737,7 +732,6 @@ export default function CustomerDetail() {
                             ${payment.amount.toFixed(2)}
                           </TableCell>
                           <TableCell className="capitalize">{payment.payment_method}</TableCell>
-                          <TableCell className="capitalize">{payment.payment_type}</TableCell>
                           <TableCell>
                             {payment.order?.book?.title || '-'}
                           </TableCell>

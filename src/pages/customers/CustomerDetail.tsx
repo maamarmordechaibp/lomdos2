@@ -216,6 +216,20 @@ export default function CustomerDetail() {
         if (processError || !paymentResult?.success) {
           throw new Error(paymentResult?.message || processError?.message || 'Payment processing failed');
         }
+
+        // Payment recorded on server side, just refresh UI
+        queryClient.invalidateQueries({ queryKey: ['customer', id] });
+        queryClient.invalidateQueries({ queryKey: ['customer-payments', id] });
+        queryClient.invalidateQueries({ queryKey: ['customers-with-balance'] });
+        toast.success(`Card payment of $${amount.toFixed(2)} processed! Ref: ${paymentResult.transactionId}`);
+        setPaymentDialog(false);
+        setPaymentAmount('');
+        setPaymentNotes('');
+        setCardNumber('');
+        setCardExpiry('');
+        setCardCvv('');
+        setIsProcessingPayment(false);
+        return;
       }
 
       // Create payment record

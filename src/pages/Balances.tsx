@@ -42,8 +42,10 @@ import { supabase } from '@/integrations/supabase/client';
 import { format, differenceInDays } from 'date-fns';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
+import { useQueryClient } from '@tanstack/react-query';
 
 export default function Balances() {
+  const queryClient = useQueryClient();
   const { data: customersWithBalance, isLoading } = useCustomersWithBalance();
   const { data: allCustomers } = useCustomers();
   const { data: recentPayments } = useAllCustomerPayments();
@@ -172,20 +174,17 @@ export default function Balances() {
           return;
         }
 
-        // Record the payment with transaction ID
-        await createPayment.mutateAsync({
-          customer_id: paymentDialog.customer.id,
-          order_id: null,
-          amount,
-          payment_method: 'card',
-          payment_type: 'balance',
-          transaction_id: data.transactionId || null,
-          notes: paymentForm.notes || null,
-        });
+        // Payment processed and recorded on server side
+        // Just invalidate queries to refresh the UI
+        queryClient.invalidateQueries({ queryKey: ['customer-payments'] });
+        queryClient.invalidateQueries({ queryKey: ['customers-with-balance'] });
+        queryClient.invalidateQueries({ queryKey: ['customers'] });
+        queryClient.invalidateQueries({ queryKey: ['all-customer-payments'] });
 
-        toast.success('Card payment processed successfully!');
+        toast.success(`Card payment of $${amount.toFixed(2)} processed! Ref: ${data.transactionId}`);
         setProcessingCard(false);
         setPaymentDialog({ open: false, customer: null });
+        setPaymentForm({ amount: '', method: 'cash', notes: '', cardNumber: '', cardExpiry: '', cardCvv: '' });
       } catch (err: any) {
         toast.error('Payment failed: ' + err.message);
         setProcessingCard(false);

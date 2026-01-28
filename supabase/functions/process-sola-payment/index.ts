@@ -138,6 +138,46 @@ serve(async (req) => {
       // Payment approved
       console.log('Payment approved, transaction ID:', result.xRefNum);
       
+      // Record the payment in database if customerId is provided
+      if (customerId) {
+        try {
+          // Insert payment record
+          const { error: paymentError } = await supabase
+            .from('customer_payments')
+            .insert({
+              customer_id: customerId,
+              order_id: orderId || null,
+              amount: amount,
+              payment_method: 'card',
+              payment_type: 'balance',
+              transaction_id: result.xRefNum,
+              notes: `Card payment - Ref: ${result.xRefNum}`,
+            });
+          
+          if (paymentError) {
+            console.error('Failed to record payment:', paymentError);
+          } else {
+            // Update customer balance
+            const { data: customer } = await supabase
+              .from('customers')
+              .select('outstanding_balance')
+              .eq('id', customerId)
+              .single();
+            
+            if (customer) {
+              const newBalance = Math.max(0, (customer.outstanding_balance || 0) - amount);
+              await supabase
+                .from('customers')
+                .update({ outstanding_balance: newBalance })
+                .eq('id', customerId);
+            }
+          }
+        } catch (dbError) {
+          console.error('Database error:', dbError);
+          // Don't fail the response - payment was already processed
+        }
+      }
+      
       return new Response(
         JSON.stringify({
           success: true,
@@ -145,6 +185,7 @@ serve(async (req) => {
           authCode: result.xAuthCode,
           message: 'Payment approved',
           maskedCard: result.xMaskedCardNumber,
+          recorded: !!customerId,
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );

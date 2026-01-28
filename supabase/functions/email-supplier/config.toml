@@ -1,0 +1,4 @@
+# Disable JWT verification for this function
+# The function is used internally and uses the service role key
+[functions.email-supplier]
+verify_jwt = false

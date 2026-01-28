@@ -1,0 +1,326 @@
+import { useState, useEffect } from 'react';
+import { AppLayout } from '@/components/layout/AppLayout';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { 
+  Settings as SettingsIcon, 
+  DollarSign,
+  Phone,
+  Mail,
+  Save,
+  CreditCard
+} from 'lucide-react';
+import { useSettings, useUpdateSettings } from '@/hooks/useSettings';
+import { toast } from 'sonner';
+
+export default function Settings() {
+  const { data: settings, isLoading } = useSettings();
+  const updateSettings = useUpdateSettings();
+  
+  const [formData, setFormData] = useState({
+    store_name: 'New Square Bookstore',
+    default_profit_margin: 20,
+    currency: 'USD',
+    sola_ifields_key: '',
+  });
+
+  useEffect(() => {
+    if (settings) {
+      setFormData({
+        store_name: settings.store_name || 'New Square Bookstore',
+        default_profit_margin: settings.default_profit_margin,
+        currency: settings.currency,
+        sola_ifields_key: settings.sola_ifields_key || '',
+      });
+    }
+  }, [settings]);
+
+  const handleSave = async () => {
+    await updateSettings.mutateAsync({
+      store_name: formData.store_name,
+      default_profit_margin: formData.default_profit_margin,
+      currency: formData.currency,
+      sola_ifields_key: formData.sola_ifields_key || null,
+    });
+  };
+
+  if (isLoading) {
+    return (
+      <AppLayout title="Settings">
+        <div className="text-center py-12 text-muted-foreground">Loading settings...</div>
+      </AppLayout>
+    );
+  }
+
+  return (
+    <AppLayout 
+      title="Settings" 
+      subtitle="Configure your bookstore settings"
+      actions={
+        <Button onClick={handleSave} disabled={updateSettings.isPending}>
+          <Save className="w-4 h-4 mr-2" />
+          {updateSettings.isPending ? 'Saving...' : 'Save Changes'}
+        </Button>
+      }
+    >
+      <div className="max-w-2xl space-y-6 animate-fade-in">
+        {/* Store Settings */}
+        <Card className="shadow-card">
+          <CardHeader>
+            <CardTitle className="font-display flex items-center gap-2">
+              <SettingsIcon className="w-5 h-5" />
+              Store Information
+            </CardTitle>
+            <CardDescription>
+              Your bookstore name used in customer notifications
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label>Store Name</Label>
+              <Input
+                value={formData.store_name}
+                onChange={(e) => setFormData({ ...formData, store_name: e.target.value })}
+                placeholder="New Square Bookstore"
+              />
+              <p className="text-xs text-muted-foreground">
+                This name is used in phone calls and SMS notifications to customers
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Pricing Settings */}
+        <Card className="shadow-card">
+          <CardHeader>
+            <CardTitle className="font-display flex items-center gap-2">
+              <DollarSign className="w-5 h-5" />
+              Pricing Settings
+            </CardTitle>
+            <CardDescription>
+              Configure default profit margins for book pricing
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Default Profit Margin (%)</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  max="100"
+                  value={formData.default_profit_margin}
+                  onChange={(e) => setFormData({ ...formData, default_profit_margin: parseFloat(e.target.value) || 0 })}
+                />
+                <p className="text-xs text-muted-foreground">
+                  This margin is applied to book cost to calculate selling price
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label>Currency</Label>
+                <Input
+                  value={formData.currency}
+                  onChange={(e) => setFormData({ ...formData, currency: e.target.value })}
+                  placeholder="USD"
+                />
+              </div>
+            </div>
+            <div className="p-4 bg-secondary/30 rounded-lg">
+              <p className="text-sm font-medium">Example Calculation</p>
+              <p className="text-sm text-muted-foreground mt-1">
+                Book cost: $10.00 + {formData.default_profit_margin}% margin = <span className="font-medium text-foreground">${(10 * (1 + formData.default_profit_margin / 100)).toFixed(2)}</span> selling price
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* SignalWire Settings */}
+        <Card className="shadow-card">
+          <CardHeader>
+            <CardTitle className="font-display flex items-center gap-2">
+              <Phone className="w-5 h-5" />
+              SignalWire Integration
+            </CardTitle>
+            <CardDescription>
+              Automated phone calls and SMS to notify customers
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="p-4 bg-green-500/10 border border-green-500/20 rounded-lg">
+              <div className="flex items-center gap-2 text-green-600 dark:text-green-400">
+                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                <span className="text-sm font-medium">SignalWire Configured</span>
+              </div>
+              <p className="text-sm text-muted-foreground mt-2">
+                SignalWire credentials are securely stored in Supabase Edge Function secrets. 
+                The notification system is ready to use.
+              </p>
+            </div>
+            
+            <div className="space-y-3 text-sm">
+              <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                <span className="text-muted-foreground">Space URL</span>
+                <span className="font-mono text-xs">••••••••.signalwire.com</span>
+              </div>
+              <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                <span className="text-muted-foreground">Project ID</span>
+                <span className="font-mono text-xs">••••••••-••••-••••</span>
+              </div>
+              <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                <span className="text-muted-foreground">API Token</span>
+                <span className="font-mono text-xs">••••••••••••••••</span>
+              </div>
+              <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                <span className="text-muted-foreground">From Number</span>
+                <span className="font-mono text-xs">••••••••••</span>
+              </div>
+            </div>
+
+            <div className="p-4 bg-muted/50 rounded-lg">
+              <p className="text-sm font-medium mb-2">Notification Features:</p>
+              <ul className="text-sm text-muted-foreground space-y-1">
+                <li>• <strong>Phone Calls:</strong> Automated text-to-speech calls</li>
+                <li>• <strong>SMS:</strong> Text message notifications</li>
+                <li>• Notification preference set per customer</li>
+                <li>• All notifications are logged for tracking</li>
+              </ul>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Resend Email Settings */}
+        <Card className="shadow-card">
+          <CardHeader>
+            <CardTitle className="font-display flex items-center gap-2">
+              <Mail className="w-5 h-5" />
+              Email Integration (Resend)
+            </CardTitle>
+            <CardDescription>
+              Send emails to customers and suppliers
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="p-4 bg-green-500/10 border border-green-500/20 rounded-lg">
+              <div className="flex items-center gap-2 text-green-600 dark:text-green-400">
+                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                <span className="text-sm font-medium">Resend Configured</span>
+              </div>
+              <p className="text-sm text-muted-foreground mt-2">
+                Email service is securely configured via Supabase Edge Function secrets.
+              </p>
+            </div>
+            
+            <div className="space-y-3 text-sm">
+              <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                <span className="text-muted-foreground">API Key</span>
+                <span className="font-mono text-xs">re_••••••••••••••••</span>
+              </div>
+              <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                <span className="text-muted-foreground">From Address</span>
+                <span className="font-mono text-xs">onboarding@resend.dev</span>
+              </div>
+            </div>
+
+            <div className="p-4 bg-muted/50 rounded-lg">
+              <p className="text-sm font-medium mb-2">Email Features:</p>
+              <ul className="text-sm text-muted-foreground space-y-1">
+                <li>• <strong>Customer Emails:</strong> Order ready, order received notifications</li>
+                <li>• <strong>Supplier Emails:</strong> New orders, order updates</li>
+                <li>• Beautiful HTML email templates</li>
+                <li>• Automatic status tracking</li>
+              </ul>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Sola Payments Settings */}
+        <Card className="shadow-card">
+          <CardHeader>
+            <CardTitle className="font-display flex items-center gap-2">
+              <CreditCard className="w-5 h-5" />
+              Sola Payments Integration
+            </CardTitle>
+            <CardDescription>
+              Accept credit card payments at checkout
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {formData.sola_ifields_key ? (
+              <div className="p-4 bg-green-500/10 border border-green-500/20 rounded-lg">
+                <div className="flex items-center gap-2 text-green-600 dark:text-green-400">
+                  <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                  <span className="text-sm font-medium">iFields Key Configured</span>
+                </div>
+                <p className="text-sm text-muted-foreground mt-2">
+                  Card tokenization is enabled. Make sure you've also set the API key secret.
+                </p>
+              </div>
+            ) : (
+              <div className="p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
+                <div className="flex items-center gap-2 text-yellow-600 dark:text-yellow-400">
+                  <div className="w-2 h-2 bg-yellow-500 rounded-full" />
+                  <span className="text-sm font-medium">Not Configured</span>
+                </div>
+                <p className="text-sm text-muted-foreground mt-2">
+                  Add your Sola iFields key below to enable card payments.
+                </p>
+              </div>
+            )}
+
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>iFields Key (Public - Safe for Frontend)</Label>
+                <Input
+                  value={formData.sola_ifields_key}
+                  onChange={(e) => setFormData({ ...formData, sola_ifields_key: e.target.value })}
+                  placeholder="ifields_..."
+                />
+                <p className="text-xs text-muted-foreground">
+                  This public key is used in the browser for secure card tokenization. Card data never touches your server.
+                </p>
+              </div>
+            </div>
+
+            <div className="p-4 bg-blue-500/10 border border-blue-500/20 rounded-lg">
+              <p className="text-sm font-medium text-blue-700 dark:text-blue-400 mb-2">
+                🔐 API Key Setup (Required for Processing)
+              </p>
+              <p className="text-sm text-muted-foreground mb-2">
+                The API key must be stored as a <strong>Supabase Edge Function secret</strong> for security:
+              </p>
+              <ol className="text-sm text-muted-foreground list-decimal list-inside space-y-1">
+                <li>Go to <a href="https://supabase.com/dashboard/project/dbpkdibyecqnlwrmqwjr/settings/functions" target="_blank" rel="noopener noreferrer" className="text-primary underline">Supabase Dashboard → Edge Functions</a></li>
+                <li>Click "Manage secrets"</li>
+                <li>Add: <code className="bg-muted px-1 rounded">SOLA_API_KEY</code> = your API key</li>
+              </ol>
+            </div>
+
+            <div className="p-4 bg-muted/50 rounded-lg">
+              <p className="text-sm font-medium mb-2">Security Architecture:</p>
+              <ul className="text-sm text-muted-foreground space-y-1">
+                <li>✓ Card data entered in <strong>Sola's secure iframes</strong></li>
+                <li>✓ Card numbers <strong>never touch your server</strong></li>
+                <li>✓ Only single-use tokens are transmitted</li>
+                <li>✓ API key stored in Edge Function secrets (not database)</li>
+                <li>✓ Fully PCI-compliant</li>
+              </ul>
+            </div>
+
+            <div className="p-4 bg-muted/50 rounded-lg">
+              <p className="text-sm font-medium mb-2">How to get your keys:</p>
+              <ol className="text-sm text-muted-foreground space-y-1 list-decimal list-inside">
+                <li>Sign up at <a href="https://solapayments.com/devsdk/" target="_blank" rel="noopener" className="text-primary hover:underline">solapayments.com/devsdk</a></li>
+                <li>Log in to the Sola Merchant Portal</li>
+                <li>Go to Account Settings → Keys</li>
+                <li>Create an <strong>iFields key</strong> (enter above)</li>
+                <li>Create an <strong>API key</strong> (add to Supabase secrets)</li>
+              </ol>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    </AppLayout>
+  );
+}

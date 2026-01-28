@@ -1,0 +1,4 @@
+project_id = "dbpkdibyecqnlwrmqwjr"
+
+[functions.email-supplier]
+verify_jwt = false

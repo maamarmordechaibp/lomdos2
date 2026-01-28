@@ -751,14 +751,14 @@ export default function CustomerDetail() {
 
       {/* Payment Dialog */}
       <Dialog open={paymentDialog} onOpenChange={setPaymentDialog}>
-        <DialogContent>
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Record Payment</DialogTitle>
             <DialogDescription>
               Record a balance payment from {customer.name}
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-4">
+          <div className="space-y-3 py-2">
             <div className="space-y-2">
               <Label>Amount</Label>
               <div className="relative">
@@ -769,7 +769,7 @@ export default function CustomerDetail() {
                   step="0.01"
                   value={paymentAmount}
                   onChange={(e) => setPaymentAmount(e.target.value)}
-                  className="pl-9"
+                  className="pl-9 h-9"
                   placeholder="0.00"
                 />
               </div>
@@ -777,7 +777,7 @@ export default function CustomerDetail() {
             <div className="space-y-2">
               <Label>Payment Method</Label>
               <Select value={paymentMethod} onValueChange={(v: any) => setPaymentMethod(v)}>
-                <SelectTrigger>
+                <SelectTrigger className="h-9">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -790,38 +790,40 @@ export default function CustomerDetail() {
             
             {/* Card Input Fields */}
             {paymentMethod === 'card' && (
-              <div className="space-y-4 p-4 border rounded-lg bg-muted/50">
-                <div className="space-y-2">
-                  <Label>Card Number</Label>
+              <div className="space-y-2 p-3 border rounded-lg bg-muted/50">
+                <div className="space-y-1">
+                  <Label className="text-sm">Card Number</Label>
                   <div className="relative">
                     <CreditCard className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                     <Input
                       value={cardNumber}
                       onChange={(e) => setCardNumber(formatCardNumber(e.target.value))}
-                      className="pl-9"
+                      className="pl-9 h-9"
                       placeholder="4242 4242 4242 4242"
                       maxLength={19}
                     />
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Expiry (MM/YY)</Label>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-1">
+                    <Label className="text-sm">Expiry</Label>
                     <Input
                       value={cardExpiry}
                       onChange={(e) => setCardExpiry(formatExpiry(e.target.value))}
                       placeholder="MM/YY"
                       maxLength={5}
+                      className="h-9"
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Label>CVV</Label>
+                  <div className="space-y-1">
+                    <Label className="text-sm">CVV</Label>
                     <Input
                       value={cardCvv}
                       onChange={(e) => setCardCvv(e.target.value.replace(/\D/g, '').slice(0, 4))}
                       placeholder="123"
                       maxLength={4}
                       type="password"
+                      className="h-9"
                     />
                   </div>
                 </div>
@@ -834,18 +836,19 @@ export default function CustomerDetail() {
                 value={paymentNotes}
                 onChange={(e) => setPaymentNotes(e.target.value)}
                 placeholder="Payment notes..."
+                className="h-9"
               />
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setPaymentDialog(false)}>Cancel</Button>
-            <Button onClick={handleRecordPayment} disabled={isProcessingPayment}>
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button variant="outline" onClick={() => setPaymentDialog(false)} className="w-full sm:w-auto">Cancel</Button>
+            <Button onClick={handleRecordPayment} disabled={isProcessingPayment} className="w-full sm:w-auto">
               {isProcessingPayment ? (
                 <>
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                   Processing...
                 </>
-              ) : 'Record Payment'}
+              ) : paymentMethod === 'card' ? 'Pay by Card' : 'Record Payment'}
             </Button>
           </DialogFooter>
         </DialogContent>

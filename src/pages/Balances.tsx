@@ -511,7 +511,7 @@ export default function Balances() {
 
       {/* Record Payment Dialog */}
       <Dialog open={paymentDialog.open} onOpenChange={(open) => !open && setPaymentDialog({ open: false, customer: null })}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Record Payment</DialogTitle>
             <DialogDescription>
@@ -556,30 +556,32 @@ export default function Balances() {
 
             {/* Card Input Fields */}
             {paymentForm.method === 'card' && (
-              <div className="space-y-3 p-4 bg-secondary/30 rounded-lg">
+              <div className="space-y-2 p-3 bg-secondary/30 rounded-lg">
                 <div>
-                  <Label htmlFor="cardNumber">Card Number</Label>
+                  <Label htmlFor="cardNumber" className="text-sm">Card Number</Label>
                   <Input
                     id="cardNumber"
                     value={paymentForm.cardNumber}
                     onChange={(e) => setPaymentForm({ ...paymentForm, cardNumber: formatCardNumber(e.target.value) })}
                     placeholder="1234 5678 9012 3456"
                     maxLength={19}
+                    className="h-9"
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <Label htmlFor="cardExpiry">Expiry (MM/YY)</Label>
+                    <Label htmlFor="cardExpiry" className="text-sm">Expiry</Label>
                     <Input
                       id="cardExpiry"
                       value={paymentForm.cardExpiry}
                       onChange={(e) => setPaymentForm({ ...paymentForm, cardExpiry: formatExpiry(e.target.value) })}
                       placeholder="MM/YY"
                       maxLength={5}
+                      className="h-9"
                     />
                   </div>
                   <div>
-                    <Label htmlFor="cardCvv">CVV</Label>
+                    <Label htmlFor="cardCvv" className="text-sm">CVV</Label>
                     <Input
                       id="cardCvv"
                       type="password"
@@ -587,6 +589,7 @@ export default function Balances() {
                       onChange={(e) => setPaymentForm({ ...paymentForm, cardCvv: e.target.value.replace(/\D/g, '').slice(0, 4) })}
                       placeholder="123"
                       maxLength={4}
+                      className="h-9"
                     />
                   </div>
                 </div>
@@ -603,25 +606,26 @@ export default function Balances() {
               />
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setPaymentDialog({ open: false, customer: null })}>
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button variant="outline" onClick={() => setPaymentDialog({ open: false, customer: null })} className="w-full sm:w-auto">
               Cancel
             </Button>
             <Button 
               onClick={handleRecordPayment} 
               disabled={createPayment.isPending || processingCard || !paymentForm.amount}
+              className="w-full sm:w-auto"
             >
               {processingCard ? (
                 <>
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Processing Card...
+                  Processing...
                 </>
               ) : createPayment.isPending ? (
                 'Recording...'
               ) : paymentForm.method === 'card' ? (
                 <>
                   <CreditCard className="w-4 h-4 mr-2" />
-                  Process Card Payment
+                  Pay by Card
                 </>
               ) : (
                 'Record Payment'

@@ -22,12 +22,15 @@ import { supabase } from '@/integrations/supabase/client';
 export default function Settings() {
   const { data: settings, isLoading } = useSettings();
   const updateSettings = useUpdateSettings();
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [uploading, setUploading] = useState(false);
+  const logoInputRef = useRef<HTMLInputElement>(null);
+  const faviconInputRef = useRef<HTMLInputElement>(null);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [uploadingFavicon, setUploadingFavicon] = useState(false);
   
   const [formData, setFormData] = useState({
     store_name: 'New Square Bookstore',
     store_logo_url: '',
+    favicon_url: '',
     default_profit_margin: 20,
     currency: 'USD',
     sola_ifields_key: '',
@@ -38,6 +41,7 @@ export default function Settings() {
       setFormData({
         store_name: settings.store_name || 'New Square Bookstore',
         store_logo_url: settings.store_logo_url || '',
+        favicon_url: (settings as any).favicon_url || '',
         default_profit_margin: settings.default_profit_margin,
         currency: settings.currency,
         sola_ifields_key: settings.sola_ifields_key || '',
@@ -45,19 +49,21 @@ export default function Settings() {
     }
   }, [settings]);
 
-  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
+  const handleImageUpload = async (
+    file: File, 
+    type: 'logo' | 'favicon',
+    setUploading: (v: boolean) => void
+  ) => {
     // Validate file type
     if (!file.type.startsWith('image/')) {
       toast.error('Please upload an image file');
       return;
     }
 
-    // Validate file size (max 2MB)
-    if (file.size > 2 * 1024 * 1024) {
-      toast.error('Image must be smaller than 2MB');
+    // Validate file size (max 2MB for logo, 500KB for favicon)
+    const maxSize = type === 'favicon' ? 500 * 1024 : 2 * 1024 * 1024;
+    if (file.size > maxSize) {
+      toast.error(`Image must be smaller than ${type === 'favicon' ? '500KB' : '2MB'}`);
       return;
     }
 
@@ -65,8 +71,8 @@ export default function Settings() {
     try {
       // Generate unique filename
       const fileExt = file.name.split('.').pop();
-      const fileName = `logo-${Date.now()}.${fileExt}`;
-      const filePath = `logos/${fileName}`;
+      const fileName = `${type}-${Date.now()}.${fileExt}`;
+      const filePath = `${type}s/${fileName}`;
 
       // Upload to Supabase Storage
       const { error: uploadError } = await supabase.storage
@@ -80,28 +86,47 @@ export default function Settings() {
         .from('store-assets')
         .getPublicUrl(filePath);
 
-      setFormData({ ...formData, store_logo_url: publicUrl });
-      toast.success('Logo uploaded! Click Save to apply.');
+      if (type === 'logo') {
+        setFormData(prev => ({ ...prev, store_logo_url: publicUrl }));
+      } else {
+        setFormData(prev => ({ ...prev, favicon_url: publicUrl }));
+      }
+      toast.success(`${type === 'logo' ? 'Logo' : 'Favicon'} uploaded! Click Save to apply.`);
     } catch (error: any) {
       console.error('Upload error:', error);
-      toast.error('Failed to upload logo: ' + error.message);
+      toast.error('Failed to upload: ' + error.message);
     } finally {
       setUploading(false);
     }
+  };
+
+  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) handleImageUpload(file, 'logo', setUploadingLogo);
+  };
+
+  const handleFaviconUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) handleImageUpload(file, 'favicon', setUploadingFavicon);
   };
 
   const handleRemoveLogo = () => {
     setFormData({ ...formData, store_logo_url: '' });
   };
 
+  const handleRemoveFavicon = () => {
+    setFormData({ ...formData, favicon_url: '' });
+  };
+
   const handleSave = async () => {
     await updateSettings.mutateAsync({
       store_name: formData.store_name,
       store_logo_url: formData.store_logo_url || null,
+      favicon_url: formData.favicon_url || null,
       default_profit_margin: formData.default_profit_margin,
       currency: formData.currency,
       sola_ifields_key: formData.sola_ifields_key || null,
-    });
+    } as any);
   };
 
   if (isLoading) {
@@ -150,7 +175,7 @@ export default function Settings() {
 
             {/* Logo Upload Section */}
             <div className="space-y-2">
-              <Label>Store Logo</Label>
+              <Label>Store Logo (Sidebar)</Label>
               <div className="flex items-start gap-4">
                 {formData.store_logo_url ? (
                   <div className="relative">
@@ -175,7 +200,7 @@ export default function Settings() {
                 )}
                 <div className="flex-1">
                   <input
-                    ref={fileInputRef}
+                    ref={logoInputRef}
                     type="file"
                     accept="image/*"
                     className="hidden"
@@ -184,14 +209,64 @@ export default function Settings() {
                   <Button
                     type="button"
                     variant="outline"
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={uploading}
+                    onClick={() => logoInputRef.current?.click()}
+                    disabled={uploadingLogo}
                   >
                     <Upload className="w-4 h-4 mr-2" />
-                    {uploading ? 'Uploading...' : 'Upload Logo'}
+                    {uploadingLogo ? 'Uploading...' : 'Upload Logo'}
                   </Button>
                   <p className="text-xs text-muted-foreground mt-2">
-                    Upload a logo (PNG, JPG, SVG). Max 2MB. Used in sidebar and browser tab.
+                    Logo displayed in the sidebar. PNG, JPG, SVG. Max 2MB.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Favicon Upload Section */}
+            <div className="space-y-2">
+              <Label>Browser Icon (Favicon)</Label>
+              <div className="flex items-start gap-4">
+                {formData.favicon_url ? (
+                  <div className="relative">
+                    <img 
+                      src={formData.favicon_url} 
+                      alt="Favicon" 
+                      className="w-12 h-12 object-contain rounded border bg-white"
+                    />
+                    <Button
+                      size="icon"
+                      variant="destructive"
+                      className="absolute -top-2 -right-2 w-5 h-5"
+                      onClick={handleRemoveFavicon}
+                    >
+                      <Trash2 className="w-2.5 h-2.5" />
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="w-12 h-12 rounded border-2 border-dashed flex items-center justify-center bg-muted/50">
+                    <ImageIcon className="w-5 h-5 text-muted-foreground" />
+                  </div>
+                )}
+                <div className="flex-1">
+                  <input
+                    ref={faviconInputRef}
+                    type="file"
+                    accept="image/png,image/x-icon,image/svg+xml"
+                    className="hidden"
+                    onChange={handleFaviconUpload}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => faviconInputRef.current?.click()}
+                    disabled={uploadingFavicon}
+                  >
+                    <Upload className="w-4 h-4 mr-2" />
+                    {uploadingFavicon ? 'Uploading...' : 'Upload Favicon'}
+                  </Button>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    Small icon shown in browser tab. PNG, ICO, or SVG. Max 500KB. Recommended: 32x32 or 64x64 pixels.
                   </p>
                 </div>
               </div>

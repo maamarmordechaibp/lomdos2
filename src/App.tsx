@@ -49,11 +49,11 @@ function DocumentTitle() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('global_settings')
-        .select('store_name, store_logo_url')
+        .select('store_name, store_logo_url, favicon_url')
         .single();
       if (error) return null;
-      // Type assertion needed because store_logo_url column may not exist in generated types yet
-      return data as unknown as { store_name: string | null; store_logo_url: string | null } | null;
+      // Type assertion needed because columns may not exist in generated types yet
+      return data as unknown as { store_name: string | null; store_logo_url: string | null; favicon_url: string | null } | null;
     },
   });
 
@@ -63,9 +63,10 @@ function DocumentTitle() {
     }
   }, [settings?.store_name]);
 
-  // Set favicon from store logo
+  // Set favicon from favicon_url (separate from store logo)
   useEffect(() => {
-    if (settings?.store_logo_url) {
+    const faviconUrl = settings?.favicon_url;
+    if (faviconUrl) {
       // Remove existing favicon links
       const existingFavicons = document.querySelectorAll("link[rel*='icon']");
       existingFavicons.forEach(el => el.remove());
@@ -73,16 +74,16 @@ function DocumentTitle() {
       // Create new favicon link
       const link = document.createElement('link');
       link.rel = 'icon';
-      link.href = settings.store_logo_url;
+      link.href = faviconUrl;
       document.head.appendChild(link);
       
       // Also set apple touch icon
       const appleLink = document.createElement('link');
       appleLink.rel = 'apple-touch-icon';
-      appleLink.href = settings.store_logo_url;
+      appleLink.href = faviconUrl;
       document.head.appendChild(appleLink);
     }
-  }, [settings?.store_logo_url]);
+  }, [settings?.favicon_url]);
 
   return null;
 }

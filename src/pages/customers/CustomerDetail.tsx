@@ -237,10 +237,8 @@ export default function CustomerDetail() {
         .from('customer_payments')
         .insert({
           customer_id: id,
-          order_id: null,
           amount,
           payment_method: paymentMethod,
-          payment_type: 'balance',
           notes: paymentNotes || null,
         });
       if (paymentError) throw paymentError;

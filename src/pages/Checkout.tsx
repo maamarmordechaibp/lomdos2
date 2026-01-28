@@ -99,7 +99,6 @@ export default function Checkout() {
           order_id: order.id,
           amount: paymentForOrder,
           payment_method: 'cash',
-          payment_type: isPaidInFull ? 'full' : 'partial',
         });
       }
       
@@ -177,7 +176,6 @@ export default function Checkout() {
             order_id: order.id,
             amount: paymentForOrder,
             payment_method: 'card',
-            payment_type: isPaidInFull ? 'full' : 'partial',
             transaction_id: result.transactionId,
           });
         }

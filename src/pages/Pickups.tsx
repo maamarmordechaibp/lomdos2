@@ -95,9 +95,6 @@ export default function Pickups() {
           order_id: selectedOrder.id,
           amount: amount,
           payment_method: 'cash',
-          payment_type: isFullyPaid ? 'full' : 'partial',
-          transaction_id: null,
-          notes: null,
         });
       }
       
@@ -207,7 +204,6 @@ export default function Pickups() {
           order_id: selectedOrder.id,
           amount: balanceDue,
           payment_method: 'card',
-          payment_type: 'full',
           transaction_id: result.transactionId,
         });
         

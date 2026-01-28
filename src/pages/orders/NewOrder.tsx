@@ -278,7 +278,6 @@ export default function NewOrder() {
             order_id: order.id,
             amount: isFullPayment ? itemTotal : Math.min(amount, itemTotal),
             payment_method: method,
-            payment_type: isFullPayment ? 'full' : 'deposit',
             transaction_id: transactionId || null,
           });
         }

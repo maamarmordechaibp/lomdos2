@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -10,17 +10,24 @@ import {
   Phone,
   Mail,
   Save,
-  CreditCard
+  CreditCard,
+  Upload,
+  ImageIcon,
+  Trash2
 } from 'lucide-react';
 import { useSettings, useUpdateSettings } from '@/hooks/useSettings';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
 
 export default function Settings() {
   const { data: settings, isLoading } = useSettings();
   const updateSettings = useUpdateSettings();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
   
   const [formData, setFormData] = useState({
     store_name: 'New Square Bookstore',
+    store_logo_url: '',
     default_profit_margin: 20,
     currency: 'USD',
     sola_ifields_key: '',
@@ -30,6 +37,7 @@ export default function Settings() {
     if (settings) {
       setFormData({
         store_name: settings.store_name || 'New Square Bookstore',
+        store_logo_url: settings.store_logo_url || '',
         default_profit_margin: settings.default_profit_margin,
         currency: settings.currency,
         sola_ifields_key: settings.sola_ifields_key || '',
@@ -37,9 +45,59 @@ export default function Settings() {
     }
   }, [settings]);
 
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please upload an image file');
+      return;
+    }
+
+    // Validate file size (max 2MB)
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error('Image must be smaller than 2MB');
+      return;
+    }
+
+    setUploading(true);
+    try {
+      // Generate unique filename
+      const fileExt = file.name.split('.').pop();
+      const fileName = `logo-${Date.now()}.${fileExt}`;
+      const filePath = `logos/${fileName}`;
+
+      // Upload to Supabase Storage
+      const { error: uploadError } = await supabase.storage
+        .from('store-assets')
+        .upload(filePath, file, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      // Get public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('store-assets')
+        .getPublicUrl(filePath);
+
+      setFormData({ ...formData, store_logo_url: publicUrl });
+      toast.success('Logo uploaded! Click Save to apply.');
+    } catch (error: any) {
+      console.error('Upload error:', error);
+      toast.error('Failed to upload logo: ' + error.message);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleRemoveLogo = () => {
+    setFormData({ ...formData, store_logo_url: '' });
+  };
+
   const handleSave = async () => {
     await updateSettings.mutateAsync({
       store_name: formData.store_name,
+      store_logo_url: formData.store_logo_url || null,
       default_profit_margin: formData.default_profit_margin,
       currency: formData.currency,
       sola_ifields_key: formData.sola_ifields_key || null,
@@ -88,6 +146,55 @@ export default function Settings() {
               <p className="text-xs text-muted-foreground">
                 This name is used in phone calls and SMS notifications to customers
               </p>
+            </div>
+
+            {/* Logo Upload Section */}
+            <div className="space-y-2">
+              <Label>Store Logo</Label>
+              <div className="flex items-start gap-4">
+                {formData.store_logo_url ? (
+                  <div className="relative">
+                    <img 
+                      src={formData.store_logo_url} 
+                      alt="Store logo" 
+                      className="w-20 h-20 object-contain rounded-lg border bg-white"
+                    />
+                    <Button
+                      size="icon"
+                      variant="destructive"
+                      className="absolute -top-2 -right-2 w-6 h-6"
+                      onClick={handleRemoveLogo}
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="w-20 h-20 rounded-lg border-2 border-dashed flex items-center justify-center bg-muted/50">
+                    <ImageIcon className="w-8 h-8 text-muted-foreground" />
+                  </div>
+                )}
+                <div className="flex-1">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleLogoUpload}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={uploading}
+                  >
+                    <Upload className="w-4 h-4 mr-2" />
+                    {uploading ? 'Uploading...' : 'Upload Logo'}
+                  </Button>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    Upload a logo (PNG, JPG, SVG). Max 2MB. Used in sidebar and browser tab.
+                  </p>
+                </div>
+              </div>
             </div>
           </CardContent>
         </Card>

@@ -42,17 +42,18 @@ const queryClient = new QueryClient({
   },
 });
 
-// Component to set browser title from store name
+// Component to set browser title and favicon from store settings
 function DocumentTitle() {
   const { data: settings } = useQuery({
     queryKey: ['settings'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('global_settings')
-        .select('store_name')
+        .select('store_name, store_logo_url')
         .single();
       if (error) return null;
-      return data;
+      // Type assertion needed because store_logo_url column may not exist in generated types yet
+      return data as unknown as { store_name: string | null; store_logo_url: string | null } | null;
     },
   });
 
@@ -61,6 +62,27 @@ function DocumentTitle() {
       document.title = `${settings.store_name} - POS`;
     }
   }, [settings?.store_name]);
+
+  // Set favicon from store logo
+  useEffect(() => {
+    if (settings?.store_logo_url) {
+      // Remove existing favicon links
+      const existingFavicons = document.querySelectorAll("link[rel*='icon']");
+      existingFavicons.forEach(el => el.remove());
+      
+      // Create new favicon link
+      const link = document.createElement('link');
+      link.rel = 'icon';
+      link.href = settings.store_logo_url;
+      document.head.appendChild(link);
+      
+      // Also set apple touch icon
+      const appleLink = document.createElement('link');
+      appleLink.rel = 'apple-touch-icon';
+      appleLink.href = settings.store_logo_url;
+      document.head.appendChild(appleLink);
+    }
+  }, [settings?.store_logo_url]);
 
   return null;
 }

@@ -54,6 +54,7 @@ export interface BookSupplierHistory {
 export interface GlobalSettings {
   id: string;
   store_name: string;
+  store_logo_url: string | null;
   default_profit_margin: number;
   currency: string;
   signalwire_space_url: string | null;

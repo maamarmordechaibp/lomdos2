@@ -33,6 +33,7 @@ import {
 } from '@/components/ui/sidebar';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
+import { useSettings } from '@/hooks/useSettings';
 
 const menuItems = [
   { title: 'Dashboard', icon: Home, path: '/' },
@@ -64,6 +65,7 @@ export function AppSidebar() {
   const location = useLocation();
   const navigate = useNavigate();
   const { profile, isAdmin, signOut } = useAuth();
+  const { data: settings } = useSettings();
 
   const handleLogout = async () => {
     await signOut();
@@ -82,12 +84,20 @@ export function AppSidebar() {
     <Sidebar>
       <SidebarHeader className="p-4 border-b border-sidebar-border">
         <Link to="/" className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg gradient-warm flex items-center justify-center">
-            <Book className="w-5 h-5 text-white" />
-          </div>
+          {settings?.store_logo_url ? (
+            <img 
+              src={settings.store_logo_url} 
+              alt={settings.store_name || 'Store logo'} 
+              className="w-10 h-10 object-contain rounded-lg"
+            />
+          ) : (
+            <div className="w-10 h-10 rounded-lg gradient-warm flex items-center justify-center">
+              <Book className="w-5 h-5 text-white" />
+            </div>
+          )}
           <div>
             <h1 className="font-display text-lg font-semibold text-sidebar-foreground">
-              BookStore
+              {settings?.store_name || 'BookStore'}
             </h1>
             <p className="text-xs text-sidebar-foreground/60">Order Management</p>
           </div>

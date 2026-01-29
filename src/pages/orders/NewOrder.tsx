@@ -28,6 +28,7 @@ import {
   BookPlus,
   FolderOpen,
   ArrowLeft,
+  Book,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
@@ -491,10 +492,25 @@ export default function NewOrder() {
                             }`}
                           >
                             <CardContent className="p-3">
-                              <p className="font-medium text-sm line-clamp-2 h-10">{book.title}</p>
-                              {book.author && (
-                                <p className="text-xs text-muted-foreground truncate">{book.author}</p>
-                              )}
+                              <div className="flex items-start gap-2">
+                                {book.cover_image_url ? (
+                                  <img 
+                                    src={book.cover_image_url} 
+                                    alt={book.title}
+                                    className="w-10 h-14 rounded object-cover flex-shrink-0"
+                                  />
+                                ) : (
+                                  <div className="w-10 h-14 rounded bg-muted flex items-center justify-center flex-shrink-0">
+                                    <Book className="w-5 h-5 text-muted-foreground" />
+                                  </div>
+                                )}
+                                <div className="flex-1 min-w-0">
+                                  <p className="font-medium text-sm line-clamp-2">{book.title_hebrew || book.title}</p>
+                                  {book.subcategory && (
+                                    <p className="text-xs text-muted-foreground truncate">{book.subcategory}</p>
+                                  )}
+                                </div>
+                              </div>
                               <div className="flex justify-between items-center mt-2">
                                 <span className={`font-bold ${price > 0 ? 'text-primary' : 'text-orange-500'}`}>
                                   {price > 0 ? `$${price.toFixed(2)}` : 'No price'}
@@ -547,10 +563,25 @@ export default function NewOrder() {
                     }`}
                   >
                     <CardContent className="p-3">
-                      <p className="font-medium text-sm line-clamp-2 h-10">{book.title}</p>
-                      {book.author && (
-                        <p className="text-xs text-muted-foreground truncate">{book.author}</p>
-                      )}
+                      <div className="flex items-start gap-2">
+                        {book.cover_image_url ? (
+                          <img 
+                            src={book.cover_image_url} 
+                            alt={book.title}
+                            className="w-10 h-14 rounded object-cover flex-shrink-0"
+                          />
+                        ) : (
+                          <div className="w-10 h-14 rounded bg-muted flex items-center justify-center flex-shrink-0">
+                            <Book className="w-5 h-5 text-muted-foreground" />
+                          </div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-sm line-clamp-2">{book.title_hebrew || book.title}</p>
+                          {book.subcategory && (
+                            <p className="text-xs text-muted-foreground truncate">{book.subcategory}</p>
+                          )}
+                        </div>
+                      </div>
                       <div className="flex justify-between items-center mt-2">
                         <span className={`font-bold ${price > 0 ? 'text-primary' : 'text-orange-500'}`}>
                           {price > 0 ? `$${price.toFixed(2)}` : 'No price'}

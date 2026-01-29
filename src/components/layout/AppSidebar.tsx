@@ -17,6 +17,7 @@ import {
   CreditCard,
   UserCog,
   LogOut,
+  Phone,
 } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
@@ -54,6 +55,7 @@ const managementItems = [
   { title: 'Inventory', icon: Warehouse, path: '/inventory' },
   { title: 'Balances', icon: DollarSign, path: '/balances' },
   { title: 'Financials', icon: BarChart3, path: '/financials' },
+  { title: 'Call Logs', icon: Phone, path: '/call-logs' },
 ];
 
 const settingsItems = [

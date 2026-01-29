@@ -95,11 +95,16 @@ If CLI doesn't work, you can deploy Edge Functions manually:
 |----------|---------|
 | `notify-customer` | Send phone calls, SMS, or emails to customers |
 | `email-supplier` | Send order emails to suppliers |
+| `handle-incoming-call` | Handle incoming calls, lookup customer, forward to cell |
+| `call-whisper` | Announce caller name, require press 1 to accept |
+| `call-status` | Update call log when call completes |
+| `click-to-call` | Initiate outbound call from app |
+| `click-to-call-connect` | Connect outbound call to customer |
 
 ### Database Tables (via migrations)
 | Table | Purpose |
 |-------|---------|
-| `books` | Book catalog |
+| `books` | Book catalog with cover images and subcategories |
 | `suppliers` | Supplier information |
 | `customers` | Customer information with notification preferences |
 | `customer_orders` | Orders from customers |
@@ -107,6 +112,7 @@ If CLI doesn't work, you can deploy Edge Functions manually:
 | `supplier_order_items` | Individual items in supplier orders |
 | `returns` | Book returns to suppliers |
 | `notification_logs` | Track all notifications sent |
+| `call_logs` | Track all incoming and outgoing calls |
 | `settings` | App settings |
 
 ### Environment Secrets
@@ -117,3 +123,11 @@ If CLI doesn't work, you can deploy Edge Functions manually:
 | `SIGNALWIRE_PROJECT_ID` | SignalWire project ID |
 | `SIGNALWIRE_API_TOKEN` | SignalWire API token |
 | `SIGNALWIRE_FROM_NUMBER` | Phone number to call/text from |
+
+### SignalWire Webhook Setup
+To receive incoming calls with caller ID lookup:
+1. Go to your SignalWire Dashboard → Phone Numbers
+2. Edit your phone number's settings
+3. Set "When a call comes in" webhook to:
+   `https://YOUR-PROJECT.supabase.co/functions/v1/handle-incoming-call`
+4. Save the settings

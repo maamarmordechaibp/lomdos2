@@ -28,6 +28,8 @@ export interface Book {
   author: string | null;
   isbn: string | null;
   category: string | null;
+  subcategory: string | null;
+  cover_image_url: string | null;
   current_supplier_id: string | null;
   default_cost: number | null;
   no_profit: boolean;
@@ -56,6 +58,7 @@ export interface GlobalSettings {
   store_name: string;
   store_logo_url: string | null;
   favicon_url: string | null;
+  store_cell_phone: string | null;
   default_profit_margin: number;
   currency: string;
   signalwire_space_url: string | null;
@@ -261,3 +264,22 @@ export interface Expense {
 export type ExpenseCategory = Expense['category'];
 export type CustomerPaymentMethod = CustomerPayment['payment_method'];
 export type SupplierPaymentMethod = SupplierPayment['payment_method'];
+
+// Call logs for tracking incoming and outgoing calls
+export interface CallLog {
+  id: string;
+  customer_id: string | null;
+  phone_number: string;
+  customer_name: string | null;
+  direction: 'inbound' | 'outbound';
+  status: 'initiated' | 'ringing' | 'in_progress' | 'completed' | 'missed' | 'busy' | 'failed' | 'no_answer';
+  duration_seconds: number | null;
+  call_sid: string | null;
+  answered_by: string | null;
+  recording_url: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+  // Joined data
+  customer?: Customer;
+}

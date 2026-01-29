@@ -11,6 +11,7 @@ import {
   ArrowLeft,
   User,
   Phone,
+  PhoneCall,
   Mail,
   Bell,
   DollarSign,
@@ -38,6 +39,7 @@ import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { OrderStatusBadge } from '@/components/orders/OrderStatusBadge';
 import { PaymentStatusBadge } from '@/components/orders/PaymentStatusBadge';
+import { useClickToCall } from '@/hooks/useCallLogs';
 import {
   Dialog,
   DialogContent,
@@ -67,6 +69,7 @@ export default function CustomerDetail() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const printRef = useRef<HTMLDivElement>(null);
+  const clickToCall = useClickToCall();
   
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState<Partial<Customer>>({});
@@ -543,7 +546,22 @@ export default function CustomerDetail() {
                 <>
                   <div className="flex items-center gap-3">
                     <Phone className="w-4 h-4 text-muted-foreground" />
-                    <span>{customer.phone || 'No phone'}</span>
+                    <span className="flex-1">{customer.phone || 'No phone'}</span>
+                    {customer.phone && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => clickToCall.mutate({
+                          phone_number: customer.phone,
+                          customer_id: customer.id,
+                          customer_name: customer.name,
+                        })}
+                        disabled={clickToCall.isPending}
+                      >
+                        <PhoneCall className="w-3 h-3 mr-1" />
+                        Call
+                      </Button>
+                    )}
                   </div>
                   <div className="flex items-center gap-3">
                     <Mail className="w-4 h-4 text-muted-foreground" />

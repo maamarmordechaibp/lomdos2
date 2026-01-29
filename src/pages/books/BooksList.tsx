@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -10,7 +10,10 @@ import {
   Plus,
   Truck,
   DollarSign,
-  AlertCircle
+  AlertCircle,
+  ImageIcon,
+  Upload,
+  Trash2
 } from 'lucide-react';
 import { useBooks, useCreateBook, useUpdateBook } from '@/hooks/useBooks';
 import { useSuppliers } from '@/hooks/useSuppliers';
@@ -30,17 +33,25 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 
 export default function BooksList() {
   const [search, setSearch] = useState('');
   const [isOpen, setIsOpen] = useState(false);
   const [editingBook, setEditingBook] = useState<any>(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [uploadingEditImage, setUploadingEditImage] = useState(false);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const editImageInputRef = useRef<HTMLInputElement>(null);
   const [newBook, setNewBook] = useState({
     title: '',
     title_hebrew: '',
     author: '',
     isbn: '',
     category: '',
+    subcategory: '',
+    cover_image_url: '',
     current_supplier_id: null as string | null,
     default_cost: null as number | null,
     no_profit: false,
@@ -48,10 +59,55 @@ export default function BooksList() {
   });
 
   const { data: books, isLoading } = useBooks(search);
-  const { categoryNames: BOOK_CATEGORIES } = useCategories();
+  const { categoryNames: BOOK_CATEGORIES, categories, getSubcategories } = useCategories();
   const { data: suppliers } = useSuppliers();
   const createBook = useCreateBook();
   const updateBook = useUpdateBook();
+
+  // Get subcategories for current selection
+  const newBookSubcategories = newBook.category ? getSubcategories(newBook.category) : [];
+  const editingBookSubcategories = editingBook?.category ? getSubcategories(editingBook.category) : [];
+
+  const handleImageUpload = async (
+    file: File,
+    setUploading: (v: boolean) => void,
+    onSuccess: (url: string) => void
+  ) => {
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please upload an image file');
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Image must be smaller than 5MB');
+      return;
+    }
+
+    setUploading(true);
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `book-cover-${Date.now()}.${fileExt}`;
+      const filePath = `book-covers/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('store-assets')
+        .upload(filePath, file, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('store-assets')
+        .getPublicUrl(filePath);
+
+      onSuccess(publicUrl);
+      toast.success('Cover image uploaded!');
+    } catch (error: any) {
+      console.error('Upload error:', error);
+      toast.error('Failed to upload: ' + error.message);
+    } finally {
+      setUploading(false);
+    }
+  };
 
   const handleCreate = async () => {
     await createBook.mutateAsync(newBook);
@@ -62,6 +118,8 @@ export default function BooksList() {
       author: '',
       isbn: '',
       category: '',
+      subcategory: '',
+      cover_image_url: '',
       current_supplier_id: null,
       default_cost: null,
       no_profit: false,
@@ -129,7 +187,7 @@ export default function BooksList() {
                 <Label>Category</Label>
                 <Select
                   value={newBook.category || 'none'}
-                  onValueChange={(value) => setNewBook({ ...newBook, category: value === 'none' ? '' : value })}
+                  onValueChange={(value) => setNewBook({ ...newBook, category: value === 'none' ? '' : value, subcategory: '' })}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select category" />
@@ -143,6 +201,75 @@ export default function BooksList() {
                     ))}
                   </SelectContent>
                 </Select>
+              </div>
+              {newBookSubcategories.length > 0 && (
+                <div className="space-y-2">
+                  <Label>Subcategory</Label>
+                  <Select
+                    value={newBook.subcategory || 'none'}
+                    onValueChange={(value) => setNewBook({ ...newBook, subcategory: value === 'none' ? '' : value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select subcategory" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">No subcategory</SelectItem>
+                      {newBookSubcategories.map((sub) => (
+                        <SelectItem key={sub.id} value={sub.name}>
+                          {sub.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+              <div className="space-y-2">
+                <Label>Cover Image</Label>
+                <div className="flex items-center gap-4">
+                  {newBook.cover_image_url ? (
+                    <div className="relative">
+                      <img 
+                        src={newBook.cover_image_url} 
+                        alt="Book cover" 
+                        className="w-20 h-28 object-cover rounded-lg border"
+                      />
+                      <Button
+                        size="icon"
+                        variant="destructive"
+                        className="absolute -top-2 -right-2 w-6 h-6"
+                        onClick={() => setNewBook({ ...newBook, cover_image_url: '' })}
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="w-20 h-28 rounded-lg border-2 border-dashed flex items-center justify-center bg-muted/50">
+                      <ImageIcon className="w-8 h-8 text-muted-foreground" />
+                    </div>
+                  )}
+                  <div className="flex-1">
+                    <input
+                      ref={imageInputRef}
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) handleImageUpload(file, setUploadingImage, (url) => setNewBook({ ...newBook, cover_image_url: url }));
+                      }}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => imageInputRef.current?.click()}
+                      disabled={uploadingImage}
+                      className="w-full"
+                    >
+                      <Upload className="w-4 h-4 mr-2" />
+                      {uploadingImage ? 'Uploading...' : 'Upload Cover'}
+                    </Button>
+                  </div>
+                </div>
               </div>
               <div className="space-y-2">
                 <Label>Default Supplier</Label>
@@ -200,9 +327,17 @@ export default function BooksList() {
               >
                 <CardContent className="p-4">
                   <div className="flex items-start gap-3">
-                    <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
-                      <Book className="w-6 h-6 text-primary" />
-                    </div>
+                    {book.cover_image_url ? (
+                      <img 
+                        src={book.cover_image_url} 
+                        alt={book.title}
+                        className="w-12 h-16 rounded-lg object-cover flex-shrink-0"
+                      />
+                    ) : (
+                      <div className="w-12 h-16 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+                        <Book className="w-6 h-6 text-primary" />
+                      </div>
+                    )}
                     <div className="flex-1 min-w-0">
                       <h3 className="font-medium truncate">{book.title}</h3>
                       {book.title_hebrew && (
@@ -213,11 +348,18 @@ export default function BooksList() {
                       {book.author && (
                         <p className="text-sm text-muted-foreground">by {book.author}</p>
                       )}
-                      {book.category && (
-                        <span className="text-xs text-primary bg-primary/10 px-2 py-0.5 rounded-full">
-                          {book.category}
-                        </span>
-                      )}
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {book.category && (
+                          <span className="text-xs text-primary bg-primary/10 px-2 py-0.5 rounded-full">
+                            {book.category}
+                          </span>
+                        )}
+                        {book.subcategory && (
+                          <span className="text-xs text-secondary-foreground bg-secondary px-2 py-0.5 rounded-full">
+                            {book.subcategory}
+                          </span>
+                        )}
+                      </div>
                       <div className="mt-2 flex flex-wrap gap-2">
                         {!book.current_supplier_id && (
                           <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 bg-warning/10 text-warning rounded-full">
@@ -277,7 +419,7 @@ export default function BooksList() {
                   <Label>Category</Label>
                   <Select
                     value={editingBook.category || 'none'}
-                    onValueChange={(value) => setEditingBook({ ...editingBook, category: value === 'none' ? '' : value })}
+                    onValueChange={(value) => setEditingBook({ ...editingBook, category: value === 'none' ? '' : value, subcategory: '' })}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Select category" />
@@ -291,6 +433,75 @@ export default function BooksList() {
                       ))}
                     </SelectContent>
                   </Select>
+                </div>
+                {editingBookSubcategories.length > 0 && (
+                  <div className="space-y-2">
+                    <Label>Subcategory</Label>
+                    <Select
+                      value={editingBook.subcategory || 'none'}
+                      onValueChange={(value) => setEditingBook({ ...editingBook, subcategory: value === 'none' ? '' : value })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select subcategory" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">No subcategory</SelectItem>
+                        {editingBookSubcategories.map((sub) => (
+                          <SelectItem key={sub.id} value={sub.name}>
+                            {sub.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+                <div className="space-y-2">
+                  <Label>Cover Image</Label>
+                  <div className="flex items-center gap-4">
+                    {editingBook.cover_image_url ? (
+                      <div className="relative">
+                        <img 
+                          src={editingBook.cover_image_url} 
+                          alt="Book cover" 
+                          className="w-20 h-28 object-cover rounded-lg border"
+                        />
+                        <Button
+                          size="icon"
+                          variant="destructive"
+                          className="absolute -top-2 -right-2 w-6 h-6"
+                          onClick={() => setEditingBook({ ...editingBook, cover_image_url: '' })}
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="w-20 h-28 rounded-lg border-2 border-dashed flex items-center justify-center bg-muted/50">
+                        <ImageIcon className="w-8 h-8 text-muted-foreground" />
+                      </div>
+                    )}
+                    <div className="flex-1">
+                      <input
+                        ref={editImageInputRef}
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) handleImageUpload(file, setUploadingEditImage, (url) => setEditingBook({ ...editingBook, cover_image_url: url }));
+                        }}
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => editImageInputRef.current?.click()}
+                        disabled={uploadingEditImage}
+                        className="w-full"
+                      >
+                        <Upload className="w-4 h-4 mr-2" />
+                        {uploadingEditImage ? 'Uploading...' : 'Upload Cover'}
+                      </Button>
+                    </div>
+                  </div>
                 </div>
                 <div className="space-y-2">
                   <Label>Supplier</Label>

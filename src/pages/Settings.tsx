@@ -31,6 +31,7 @@ export default function Settings() {
     store_name: 'New Square Bookstore',
     store_logo_url: '',
     favicon_url: '',
+    store_cell_phone: '',
     default_profit_margin: 20,
     currency: 'USD',
     sola_ifields_key: '',
@@ -42,6 +43,7 @@ export default function Settings() {
         store_name: settings.store_name || 'New Square Bookstore',
         store_logo_url: settings.store_logo_url || '',
         favicon_url: (settings as any).favicon_url || '',
+        store_cell_phone: (settings as any).store_cell_phone || '',
         default_profit_margin: settings.default_profit_margin,
         currency: settings.currency,
         sola_ifields_key: settings.sola_ifields_key || '',
@@ -123,6 +125,7 @@ export default function Settings() {
       store_name: formData.store_name,
       store_logo_url: formData.store_logo_url || null,
       favicon_url: formData.favicon_url || null,
+      store_cell_phone: formData.store_cell_phone || null,
       default_profit_margin: formData.default_profit_margin,
       currency: formData.currency,
       sola_ifields_key: formData.sola_ifields_key || null,
@@ -323,13 +326,26 @@ export default function Settings() {
           <CardHeader>
             <CardTitle className="font-display flex items-center gap-2">
               <Phone className="w-5 h-5" />
-              SignalWire Integration
+              Phone System & SignalWire Integration
             </CardTitle>
             <CardDescription>
-              Automated phone calls and SMS to notify customers
+              Automated phone calls, SMS, and incoming call management
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            {/* Store Cell Phone - For call forwarding */}
+            <div className="space-y-2">
+              <Label>Your Cell Phone Number</Label>
+              <Input
+                value={formData.store_cell_phone}
+                onChange={(e) => setFormData({ ...formData, store_cell_phone: e.target.value })}
+                placeholder="(555) 123-4567"
+              />
+              <p className="text-xs text-muted-foreground">
+                Your personal cell phone. Incoming calls will be forwarded here, and click-to-call will ring this number first.
+              </p>
+            </div>
+
             <div className="p-4 bg-green-500/10 border border-green-500/20 rounded-lg">
               <div className="flex items-center gap-2 text-green-600 dark:text-green-400">
                 <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
@@ -365,9 +381,28 @@ export default function Settings() {
               <ul className="text-sm text-muted-foreground space-y-1">
                 <li>• <strong>Phone Calls:</strong> Automated text-to-speech calls</li>
                 <li>• <strong>SMS:</strong> Text message notifications</li>
+                <li>• <strong>Incoming Calls:</strong> Caller ID lookup, announces customer name</li>
+                <li>• <strong>Click-to-Call:</strong> Call customers from the app</li>
                 <li>• Notification preference set per customer</li>
-                <li>• All notifications are logged for tracking</li>
+                <li>• All calls and notifications are logged for tracking</li>
               </ul>
+            </div>
+
+            <div className="p-4 bg-blue-500/10 border border-blue-500/20 rounded-lg">
+              <p className="text-sm font-medium text-blue-700 dark:text-blue-400 mb-2">
+                📞 Incoming Call Setup
+              </p>
+              <p className="text-sm text-muted-foreground mb-2">
+                To receive incoming calls with caller ID, set up the webhook in SignalWire:
+              </p>
+              <ol className="text-sm text-muted-foreground list-decimal list-inside space-y-1">
+                <li>Go to your SignalWire Phone Numbers</li>
+                <li>Edit your number's settings</li>
+                <li>Set "When a call comes in" webhook to:</li>
+              </ol>
+              <code className="text-xs bg-muted px-2 py-1 rounded block mt-2 break-all">
+                https://your-project.supabase.co/functions/v1/handle-incoming-call
+              </code>
             </div>
           </CardContent>
         </Card>

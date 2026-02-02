@@ -324,3 +324,34 @@ export interface CallLog {
   // Joined data
   customer?: Customer;
 }
+
+// Promo Codes for discounts
+export interface PromoCode {
+  id: string;
+  code: string;
+  description: string | null;
+  discount_type: 'percentage' | 'fixed';
+  discount_value: number;
+  start_date: string | null;
+  end_date: string | null;
+  max_uses: number | null;
+  current_uses: number;
+  max_uses_per_customer: number;
+  minimum_order_amount: number | null;
+  is_active: boolean;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PromoCodeUsage {
+  id: string;
+  promo_code_id: string;
+  customer_id: string;
+  order_id: string | null;
+  discount_applied: number;
+  used_at: string;
+  // Joined data
+  promo_code?: PromoCode;
+  customer?: Customer;
+}

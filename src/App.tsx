@@ -30,6 +30,7 @@ import Financials from "./pages/Financials";
 import Settings from "./pages/Settings";
 import UserManagement from "./pages/UserManagement";
 import CallLogs from "./pages/CallLogs";
+import PromoCodes from "./pages/PromoCodes";
 
 // Configure React Query with sensible defaults
 const queryClient = new QueryClient({
@@ -207,6 +208,11 @@ const App = () => (
             <Route path="/call-logs" element={
               <ProtectedRoute requireAdmin>
                 <CallLogs />
+              </ProtectedRoute>
+            } />
+            <Route path="/promo-codes" element={
+              <ProtectedRoute requireAdmin>
+                <PromoCodes />
               </ProtectedRoute>
             } />
             <Route path="*" element={<NotFound />} />

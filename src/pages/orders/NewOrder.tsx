@@ -4,13 +4,15 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
 import { CustomerSearch } from '@/components/customers/CustomerSearch';
 import { useCreateCustomerOrder } from '@/hooks/useOrders';
 import { useFromStock } from '@/hooks/useInventory';
 import { useBooks, useCreateBook } from '@/hooks/useBooks';
 import { useSettings } from '@/hooks/useSettings';
 import { useCategories } from '@/hooks/useCategories';
-import { Customer, Book } from '@/types/database';
+import { useValidatePromoCode, useRecordPromoCodeUsage } from '@/hooks/usePromoCodes';
+import { Customer, Book, PromoCode } from '@/types/database';
 import { 
   ShoppingCart, 
   Search, 
@@ -29,6 +31,10 @@ import {
   FolderOpen,
   ArrowLeft,
   Book,
+  Tag,
+  Percent,
+  CheckCircle2,
+  AlertCircle,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
@@ -59,6 +65,8 @@ export default function NewOrder() {
   const { data: books, refetch: refetchBooks } = useBooks();
   const { data: settings } = useSettings();
   const { categoryNames: BOOK_CATEGORIES } = useCategories();
+  const validatePromoCode = useValidatePromoCode();
+  const recordPromoCodeUsage = useRecordPromoCodeUsage();
   
   // State
   const [customer, setCustomer] = useState<Customer | null>(null);
@@ -68,6 +76,12 @@ export default function NewOrder() {
   const [paymentAmount, setPaymentAmount] = useState('');
   const [showCardDialog, setShowCardDialog] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  
+  // Promo code state
+  const [promoCodeInput, setPromoCodeInput] = useState('');
+  const [appliedPromoCode, setAppliedPromoCode] = useState<PromoCode | null>(null);
+  const [promoCodeError, setPromoCodeError] = useState<string | null>(null);
+  const [isValidatingPromo, setIsValidatingPromo] = useState(false);
   
   // Edit price state
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
@@ -88,12 +102,73 @@ export default function NewOrder() {
   
   // Calculations
   const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-  const amount = parseFloat(paymentAmount) || 0;
-  const change = amount > subtotal ? amount - subtotal : 0;
-  const balanceDue = subtotal > amount ? subtotal - amount : 0;
-  const isFullPayment = amount >= subtotal && subtotal > 0;
-  const isPartialPayment = amount > 0 && amount < subtotal;
   
+  // Calculate customer discount (percentage or fixed)
+  let customerDiscountAmount = 0;
+  let customerDiscountLabel = '';
+  if (customer?.default_discount_type && customer?.default_discount_value) {
+    if (customer.default_discount_type === 'percentage') {
+      customerDiscountAmount = subtotal * (customer.default_discount_value / 100);
+      customerDiscountLabel = `${customer.default_discount_value}%`;
+    } else {
+      customerDiscountAmount = Math.min(customer.default_discount_value, subtotal);
+      customerDiscountLabel = `$${customer.default_discount_value}`;
+    }
+  }
+  
+  // Promo code discount
+  let promoDiscountAmount = 0;
+  if (appliedPromoCode) {
+    const amountAfterCustomerDiscount = subtotal - customerDiscountAmount;
+    if (appliedPromoCode.discount_type === 'percentage') {
+      promoDiscountAmount = amountAfterCustomerDiscount * (appliedPromoCode.discount_value / 100);
+    } else {
+      promoDiscountAmount = Math.min(appliedPromoCode.discount_value, amountAfterCustomerDiscount);
+    }
+  }
+  
+  const totalDiscount = customerDiscountAmount + promoDiscountAmount;
+  const finalTotal = Math.max(0, subtotal - totalDiscount);
+  
+  const amount = parseFloat(paymentAmount) || 0;
+  const change = amount > finalTotal ? amount - finalTotal : 0;
+  const balanceDue = finalTotal > amount ? finalTotal - amount : 0;
+  const isFullPayment = amount >= finalTotal && finalTotal > 0;
+  const isPartialPayment = amount > 0 && amount < finalTotal;
+  
+  // Apply promo code
+  const handleApplyPromoCode = async () => {
+    if (!promoCodeInput.trim()) return;
+    
+    setIsValidatingPromo(true);
+    setPromoCodeError(null);
+    
+    try {
+      const result = await validatePromoCode.mutateAsync({
+        code: promoCodeInput.trim().toUpperCase(),
+        orderTotal: subtotal - customerDiscountAmount,
+        customerId: customer?.id,
+      });
+      
+      if (result.valid && result.promoCode) {
+        setAppliedPromoCode(result.promoCode);
+        setPromoCodeInput('');
+        toast.success('Promo code applied!');
+      } else {
+        setPromoCodeError(result.error || 'Invalid promo code');
+      }
+    } catch (error: any) {
+      setPromoCodeError(error.message || 'Failed to validate promo code');
+    } finally {
+      setIsValidatingPromo(false);
+    }
+  };
+  
+  const handleRemovePromoCode = () => {
+    setAppliedPromoCode(null);
+    setPromoCodeError(null);
+  };
+
   // Calculate price with margin
   const calculatePrice = (book: Book) => {
     if (!book.default_cost) return 0;
@@ -243,10 +318,15 @@ export default function NewOrder() {
     try {
       let totalBalanceDue = 0;
       
+      // Calculate discount per item proportionally
+      const discountRatio = totalDiscount > 0 ? totalDiscount / subtotal : 0;
+      
       // Create orders for each item
       for (const item of cart) {
         const hasStock = item.book.quantity_in_stock >= item.quantity;
-        const itemTotal = item.price * item.quantity;
+        const itemSubtotal = item.price * item.quantity;
+        const itemDiscount = itemSubtotal * discountRatio;
+        const itemTotal = itemSubtotal - itemDiscount;
         const itemBalanceDue = isFullPayment ? 0 : itemTotal - Math.min(amount, itemTotal);
         totalBalanceDue += itemBalanceDue;
         
@@ -269,7 +349,9 @@ export default function NewOrder() {
           balance_due: itemBalanceDue,
           total_amount: itemTotal,
           picked_up_at: hasStock ? new Date().toISOString() : null,
-          notes: hasStock ? '[POS - From Stock]' : '[POS - Will Order]',
+          notes: hasStock 
+            ? `[POS - From Stock]${totalDiscount > 0 ? ` | Discount: $${itemDiscount.toFixed(2)}` : ''}` 
+            : `[POS - Will Order]${totalDiscount > 0 ? ` | Discount: $${itemDiscount.toFixed(2)}` : ''}`,
         });
         
         // Record payment
@@ -282,6 +364,15 @@ export default function NewOrder() {
             transaction_id: transactionId || null,
           });
         }
+      }
+      
+      // Record promo code usage
+      if (appliedPromoCode && customer) {
+        await recordPromoCodeUsage.mutateAsync({
+          promoCodeId: appliedPromoCode.id,
+          customerId: customer.id,
+          discountAmount: promoDiscountAmount,
+        });
       }
       
       // Update customer outstanding balance if there's balance due
@@ -302,15 +393,16 @@ export default function NewOrder() {
       if (change > 0 && method === 'cash') {
         toast.success(`Done! Change: $${change.toFixed(2)}`, { duration: 5000 });
       } else if (amount === 0) {
-        toast.success(`Order created! Balance due: $${subtotal.toFixed(2)}`);
+        toast.success(`Order created! Balance due: $${finalTotal.toFixed(2)}`);
       } else if (!isFullPayment && amount > 0) {
-        toast.success(`Deposit recorded! Balance: $${(subtotal - amount).toFixed(2)}`);
+        toast.success(`Deposit recorded! Balance: $${(finalTotal - amount).toFixed(2)}`);
       } else {
         toast.success('Order complete!');
       }
       
       // Reset for next customer
       clearCart();
+      setAppliedPromoCode(null);
       
     } catch (error: any) {
       toast.error(error.message || 'Failed to process order');
@@ -628,7 +720,7 @@ export default function NewOrder() {
         <div className="flex flex-col bg-card rounded-lg border shadow-sm min-h-0">
           {/* Customer Selection */}
           <div className="p-3 border-b">
-            <Label className="text-xs text-muted-foreground uppercase tracking-wide">Customer</Label>
+            <Label className="text-xs text-muted-foreground uppercase tracking-wide">Step 1: Select Customer</Label>
             {customer ? (
               <div className="flex items-center justify-between mt-1 p-2 bg-muted rounded">
                 <div className="flex items-center gap-2">
@@ -636,6 +728,14 @@ export default function NewOrder() {
                   <div>
                     <span className="font-medium">{customer.name}</span>
                     <span className="text-xs text-muted-foreground ml-2">{customer.phone}</span>
+                    {customer.default_discount_type && customer.default_discount_value && customer.default_discount_value > 0 && (
+                      <Badge variant="secondary" className="ml-2 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400">
+                        <Percent className="w-3 h-3 mr-1" />
+                        {customer.default_discount_type === 'percentage' 
+                          ? `${customer.default_discount_value}% off` 
+                          : `$${customer.default_discount_value} off`}
+                      </Badge>
+                    )}
                   </div>
                 </div>
                 <Button variant="ghost" size="sm" onClick={() => setCustomer(null)}>
@@ -651,6 +751,7 @@ export default function NewOrder() {
           
           {/* Cart Items */}
           <div className="flex-1 overflow-y-auto p-3 space-y-2 min-h-0">
+            <Label className="text-xs text-muted-foreground uppercase tracking-wide">Step 2: Add Books to Cart</Label>
             {cart.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
                 <ShoppingCart className="w-10 h-10 mx-auto mb-2 opacity-30" />
@@ -754,16 +855,116 @@ export default function NewOrder() {
           </div>
           
           {/* Payment Section */}
-          <div className="border-t p-4 space-y-4 bg-muted/30">
-            {/* Total */}
-            <div className="flex justify-between items-center pb-2 border-b">
-              <span className="text-lg font-medium">Total:</span>
-              <span className="text-3xl font-bold text-primary">${subtotal.toFixed(2)}</span>
+          <div className="border-t p-4 space-y-3 bg-muted/30">
+            <Label className="text-xs text-muted-foreground uppercase tracking-wide">Step 3: Checkout & Payment</Label>
+            {/* Order Summary */}
+            <div className="space-y-2">
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-muted-foreground">Subtotal ({cart.length} items):</span>
+                <span className="font-medium">${subtotal.toFixed(2)}</span>
+              </div>
+              
+              {/* Customer Default Discount */}
+              {customerDiscountAmount > 0 && (
+                <div className="flex justify-between items-center text-sm text-green-600 dark:text-green-400">
+                  <span className="flex items-center gap-1">
+                    <Percent className="w-3 h-3" />
+                    Customer Discount ({customerDiscountLabel}):
+                  </span>
+                  <span>-${customerDiscountAmount.toFixed(2)}</span>
+                </div>
+              )}
+              
+              {/* Promo Code Discount */}
+              {appliedPromoCode && (
+                <div className="flex justify-between items-center text-sm text-green-600 dark:text-green-400">
+                  <span className="flex items-center gap-1">
+                    <Tag className="w-3 h-3" />
+                    Promo "{appliedPromoCode.code}" 
+                    ({appliedPromoCode.discount_type === 'percentage' 
+                      ? `${appliedPromoCode.discount_value}%` 
+                      : `$${appliedPromoCode.discount_value}`}):
+                  </span>
+                  <div className="flex items-center gap-1">
+                    <span>-${promoDiscountAmount.toFixed(2)}</span>
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      className="h-5 w-5 text-muted-foreground hover:text-destructive"
+                      onClick={handleRemovePromoCode}
+                    >
+                      <X className="w-3 h-3" />
+                    </Button>
+                  </div>
+                </div>
+              )}
+              
+              {/* Total with Discounts */}
+              <div className="flex justify-between items-center pt-2 border-t">
+                <span className="text-lg font-medium">Total:</span>
+                <div className="text-right">
+                  {totalDiscount > 0 && (
+                    <span className="text-sm text-muted-foreground line-through mr-2">
+                      ${subtotal.toFixed(2)}
+                    </span>
+                  )}
+                  <span className="text-2xl font-bold text-primary">${finalTotal.toFixed(2)}</span>
+                </div>
+              </div>
+              
+              {totalDiscount > 0 && (
+                <div className="text-center">
+                  <Badge variant="secondary" className="bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400">
+                    You save ${totalDiscount.toFixed(2)}!
+                  </Badge>
+                </div>
+              )}
             </div>
             
-            {/* Payment Amount */}
-            <div className="space-y-2">
-              <Label className="text-sm font-medium">Payment Amount</Label>
+            {/* Step 2: Promo Code Input */}
+            {!appliedPromoCode && cart.length > 0 && (
+              <div className="space-y-2 pt-2 border-t">
+                <Label className="text-xs text-muted-foreground uppercase tracking-wide flex items-center gap-1">
+                  <Tag className="w-3 h-3" /> Promo Code
+                </Label>
+                <div className="flex gap-2">
+                  <Input
+                    value={promoCodeInput}
+                    onChange={(e) => {
+                      setPromoCodeInput(e.target.value.toUpperCase());
+                      setPromoCodeError(null);
+                    }}
+                    placeholder="Enter code..."
+                    className={`h-10 uppercase ${promoCodeError ? 'border-destructive' : ''}`}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        handleApplyPromoCode();
+                      }
+                    }}
+                  />
+                  <Button 
+                    variant="outline" 
+                    className="h-10 px-4"
+                    onClick={handleApplyPromoCode}
+                    disabled={!promoCodeInput.trim() || isValidatingPromo}
+                  >
+                    {isValidatingPromo ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Apply'}
+                  </Button>
+                </div>
+                {promoCodeError && (
+                  <p className="text-xs text-destructive flex items-center gap-1">
+                    <AlertCircle className="w-3 h-3" />
+                    {promoCodeError}
+                  </p>
+                )}
+              </div>
+            )}
+            
+            {/* Step 3: Payment Amount */}
+            <div className="space-y-2 pt-2 border-t">
+              <Label className="text-xs text-muted-foreground uppercase tracking-wide flex items-center gap-1">
+                <DollarSign className="w-3 h-3" /> Payment Amount
+              </Label>
               <div className="relative">
                 <DollarSign className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                 <Input
@@ -775,17 +976,17 @@ export default function NewOrder() {
                 />
               </div>
               {/* Quick amount buttons */}
-              {subtotal > 0 && (
+              {finalTotal > 0 && (
                 <div className="flex gap-2 flex-wrap">
                   <Button 
                     variant="outline" 
                     size="sm" 
                     className="h-9"
-                    onClick={() => setPaymentAmount(subtotal.toFixed(2))}
+                    onClick={() => setPaymentAmount(finalTotal.toFixed(2))}
                   >
-                    Full ${subtotal.toFixed(2)}
+                    Full ${finalTotal.toFixed(2)}
                   </Button>
-                  {subtotal > 10 && (
+                  {finalTotal > 10 && (
                     <Button 
                       variant="outline" 
                       size="sm" 
@@ -795,7 +996,7 @@ export default function NewOrder() {
                       $10
                     </Button>
                   )}
-                  {subtotal > 20 && (
+                  {finalTotal > 20 && (
                     <Button 
                       variant="outline" 
                       size="sm" 
@@ -811,14 +1012,14 @@ export default function NewOrder() {
                     className="h-9"
                     onClick={() => setPaymentAmount('0')}
                   >
-                    $0 (No payment)
+                    $0 (Order Only)
                   </Button>
                 </div>
               )}
             </div>
             
-            {/* Change or Deposit indicator */}
-            {subtotal > 0 && (
+            {/* Payment Status Indicator */}
+            {finalTotal > 0 && (
               change > 0 ? (
                 <div className="p-3 bg-green-100 dark:bg-green-900/30 rounded-lg text-green-700 dark:text-green-400 text-center">
                   <span className="text-lg font-bold">Change: ${change.toFixed(2)}</span>
@@ -828,8 +1029,9 @@ export default function NewOrder() {
                   {amount > 0 ? 'Deposit' : 'No payment'} - Balance: <span className="font-bold">${balanceDue.toFixed(2)}</span>
                 </div>
               ) : amount > 0 ? (
-                <div className="p-3 bg-green-100 dark:bg-green-900/30 rounded-lg text-green-700 dark:text-green-400 text-center">
-                  ✓ Full payment - Ready for pickup!
+                <div className="p-3 bg-green-100 dark:bg-green-900/30 rounded-lg text-green-700 dark:text-green-400 text-center flex items-center justify-center gap-2">
+                  <CheckCircle2 className="w-5 h-5" />
+                  <span>Full payment - Ready for pickup!</span>
                 </div>
               ) : null
             )}

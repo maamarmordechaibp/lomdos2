@@ -316,301 +316,320 @@ export default function Checkout() {
   
   return (
     <AppLayout title="Checkout" subtitle="Process customer payment">
-      <div className="max-w-2xl mx-auto space-y-6 animate-fade-in">
-        {/* Order Summary */}
-        <Card className="shadow-card">
-          <CardHeader>
-            <CardTitle className="font-display flex items-center gap-2">
-              <ShoppingCart className="w-5 h-5" />
-              Order Summary
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {/* Customer Info */}
-            <div className="flex justify-between items-center pb-3 border-b">
-              <span className="text-muted-foreground">Customer:</span>
-              <span className="font-medium">{customer?.name}</span>
-            </div>
-            
-            {/* Order Items */}
-            <div className="space-y-2">
-              {orders.map((order) => (
-                <div key={order.id} className="flex justify-between items-center py-2 border-b last:border-0">
-                  <div>
-                    <p className="font-medium">{order.book?.title}</p>
-                    <p className="text-sm text-muted-foreground">Qty: {order.quantity}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-medium">${order.final_price?.toFixed(2) || '0.00'}</p>
-                    {(order.amount_paid || 0) > 0 && (
-                      <p className="text-sm text-green-600">Paid: ${order.amount_paid?.toFixed(2)}</p>
-                    )}
-                  </div>
+      <div className="max-w-4xl mx-auto space-y-6 animate-fade-in pb-8">
+        {/* Customer Info Header */}
+        <Card className="shadow-card bg-gradient-to-r from-primary/5 to-primary/10">
+          <CardContent className="py-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center">
+                  <span className="text-xl font-bold text-primary">{customer?.name?.charAt(0) || '?'}</span>
                 </div>
-              ))}
-            </div>
-            
-            {/* Totals */}
-            <div className="pt-3 space-y-2 bg-muted/50 p-4 rounded-lg">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Subtotal:</span>
-                <span>${subtotal.toFixed(2)}</span>
+                <div>
+                  <p className="font-semibold text-lg">{customer?.name}</p>
+                  <p className="text-sm text-muted-foreground">{customer?.phone}</p>
+                </div>
               </div>
-              {discountAmount > 0 && (
-                <div className="flex justify-between text-green-600">
-                  <span>Discount ({discountType === 'percentage' ? `${discountValue}%` : `$${discountValue}`}):</span>
-                  <span>-${discountAmount.toFixed(2)}</span>
+              {customer?.default_discount_type && customer?.default_discount_value && (
+                <div className="px-3 py-1 bg-green-100 dark:bg-green-900/30 rounded-full text-green-700 dark:text-green-400 text-sm font-medium">
+                  {customer.default_discount_type === 'percentage' 
+                    ? `${customer.default_discount_value}% off` 
+                    : `$${customer.default_discount_value} off`} applied
                 </div>
               )}
-              {totalPaid > 0 && (
-                <div className="flex justify-between text-green-600">
-                  <span>Already Paid:</span>
-                  <span>-${totalPaid.toFixed(2)}</span>
-                </div>
-              )}
-              <div className="flex justify-between text-xl font-bold border-t pt-2">
-                <span>Balance Due:</span>
-                <span className={balanceDue > 0 ? 'text-orange-600' : 'text-green-600'}>
-                  ${balanceDue.toFixed(2)}
-                </span>
-              </div>
             </div>
           </CardContent>
         </Card>
         
-        {/* Discount Section */}
-        <Card className="shadow-card">
-          <CardHeader>
-            <CardTitle className="font-display flex items-center gap-2">
-              <Tag className="w-5 h-5" />
-              Discount
-              {customer?.default_discount_type && customer.default_discount_type !== 'none' && (
-                <span className="text-sm font-normal text-muted-foreground ml-2">
-                  (Customer default applied)
-                </span>
-              )}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Discount Type</Label>
-                <Select 
-                  value={discountType} 
-                  onValueChange={(v) => setDiscountType(v as 'none' | 'percentage' | 'fixed')}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">No Discount</SelectItem>
-                    <SelectItem value="percentage">Percentage (%)</SelectItem>
-                    <SelectItem value="fixed">Fixed Amount ($)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              
-              {discountType !== 'none' && (
-                <div className="space-y-2">
-                  <Label>{discountType === 'percentage' ? 'Percentage' : 'Amount'}</Label>
+        <div className="grid md:grid-cols-2 gap-6">
+          {/* Left Column - Order Summary */}
+          <div className="space-y-6">
+            {/* Order Summary */}
+            <Card className="shadow-card">
+              <CardHeader>
+                <CardTitle className="font-display flex items-center gap-2">
+                  <ShoppingCart className="w-5 h-5" />
+                  Order Summary
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Order Items */}
+                <div className="space-y-3">
+                  {orders.map((order) => (
+                    <div key={order.id} className="flex justify-between items-start py-3 border-b last:border-0">
+                      <div className="flex-1">
+                        <p className="font-medium text-base">{order.book?.title}</p>
+                        <p className="text-sm text-muted-foreground">Qty: {order.quantity}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-semibold text-lg">${order.final_price?.toFixed(2) || '0.00'}</p>
+                        {(order.amount_paid || 0) > 0 && (
+                          <p className="text-sm text-green-600">Paid: ${order.amount_paid?.toFixed(2)}</p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+            
+                {/* Totals */}
+                <div className="pt-4 space-y-3 bg-muted/50 p-4 rounded-lg">
+                  <div className="flex justify-between text-base">
+                    <span className="text-muted-foreground">Subtotal:</span>
+                    <span className="font-medium">${subtotal.toFixed(2)}</span>
+                  </div>
+                  {discountAmount > 0 && (
+                    <div className="flex justify-between text-green-600">
+                      <span>Discount ({discountType === 'percentage' ? `${discountValue}%` : `$${discountValue}`}):</span>
+                      <span className="font-medium">-${discountAmount.toFixed(2)}</span>
+                    </div>
+                  )}
+                  {totalPaid > 0 && (
+                    <div className="flex justify-between text-blue-600">
+                      <span>Already Paid:</span>
+                      <span className="font-medium">-${totalPaid.toFixed(2)}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between text-2xl font-bold border-t pt-3 mt-2">
+                    <span>Balance Due:</span>
+                    <span className={balanceDue > 0 ? 'text-orange-600' : 'text-green-600'}>
+                      ${balanceDue.toFixed(2)}
+                    </span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            
+            {/* Discount Section */}
+            <Card className="shadow-card">
+              <CardHeader className="pb-3">
+                <CardTitle className="font-display flex items-center gap-2 text-base">
+                  <Tag className="w-4 h-4" />
+                  Apply Discount
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-sm">Type</Label>
+                    <Select 
+                      value={discountType} 
+                      onValueChange={(v) => setDiscountType(v as 'none' | 'percentage' | 'fixed')}
+                    >
+                      <SelectTrigger className="h-10">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">No Discount</SelectItem>
+                        <SelectItem value="percentage">Percentage (%)</SelectItem>
+                        <SelectItem value="fixed">Fixed Amount ($)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  {discountType !== 'none' && (
+                    <div className="space-y-1">
+                      <Label className="text-sm">{discountType === 'percentage' ? 'Percent' : 'Amount'}</Label>
+                      <div className="relative">
+                        {discountType === 'percentage' ? (
+                          <Percent className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                        ) : (
+                          <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                        )}
+                        <Input
+                          type="number"
+                          min="0"
+                          step={discountType === 'percentage' ? '1' : '0.01'}
+                          max={discountType === 'percentage' ? '100' : undefined}
+                          value={discountValue}
+                          onChange={(e) => setDiscountValue(e.target.value)}
+                          className="pl-9 h-10"
+                          placeholder={discountType === 'percentage' ? '10' : '5.00'}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+                
+                {discountType !== 'none' && (
+                  <div className="space-y-1">
+                    <Label className="text-sm">Reason (optional)</Label>
+                    <Input
+                      value={discountReason}
+                      onChange={(e) => setDiscountReason(e.target.value)}
+                      placeholder="e.g., Promo code, loyalty"
+                      className="h-10"
+                    />
+                  </div>
+                )}
+                
+                {discountAmount > 0 && (
+                  <div className="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg flex justify-between items-center">
+                    <span className="text-green-700 dark:text-green-400 font-medium">Saving:</span>
+                    <span className="text-green-700 dark:text-green-400 font-bold text-lg">-${discountAmount.toFixed(2)}</span>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+          
+          {/* Right Column - Payment */}
+          <div className="space-y-6">
+            {/* Payment Section */}
+            <Card className="shadow-card">
+              <CardHeader>
+                <CardTitle className="font-display flex items-center gap-2">
+                  <DollarSign className="w-5 h-5" />
+                  Payment
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-5">
+                {/* Payment Amount */}
+                <div className="space-y-3">
+                  <Label className="text-base font-medium">Payment Amount</Label>
                   <div className="relative">
-                    {discountType === 'percentage' ? (
-                      <Percent className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    ) : (
-                      <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    )}
+                    <DollarSign className="absolute left-4 top-1/2 -translate-y-1/2 w-6 h-6 text-muted-foreground" />
                     <Input
                       type="number"
                       min="0"
-                      step={discountType === 'percentage' ? '1' : '0.01'}
-                      max={discountType === 'percentage' ? '100' : undefined}
-                      value={discountValue}
-                      onChange={(e) => setDiscountValue(e.target.value)}
-                      className="pl-9"
-                      placeholder={discountType === 'percentage' ? '10' : '5.00'}
+                      step="0.01"
+                      value={paymentAmount}
+                      onChange={(e) => setPaymentAmount(e.target.value)}
+                      className="pl-12 text-2xl h-16 font-bold"
+                      placeholder="0.00"
                     />
                   </div>
+                  
+                  {/* Quick amount buttons */}
+                  <div className="flex flex-wrap gap-2">
+                    <Button 
+                      type="button" 
+                      variant="outline" 
+                      size="default"
+                      onClick={() => setPaymentAmount(balanceDue.toFixed(2))}
+                      className="flex-1"
+                    >
+                      Full (${balanceDue.toFixed(2)})
+                    </Button>
+                    {balanceDue > 20 && (
+                      <Button 
+                        type="button" 
+                        variant="outline" 
+                        size="default"
+                        onClick={() => setPaymentAmount('20.00')}
+                      >
+                        $20
+                      </Button>
+                    )}
+                    {balanceDue > 50 && (
+                      <Button 
+                        type="button" 
+                        variant="outline" 
+                        size="default"
+                        onClick={() => setPaymentAmount('50.00')}
+                      >
+                        $50
+                      </Button>
+                    )}
+                  </div>
                 </div>
-              )}
-            </div>
-            
-            {discountType !== 'none' && (
-              <div className="space-y-2">
-                <Label>Reason (optional)</Label>
-                <Input
-                  value={discountReason}
-                  onChange={(e) => setDiscountReason(e.target.value)}
-                  placeholder="e.g., Loyal customer, Promo code, etc."
-                />
-              </div>
-            )}
-            
-            {discountAmount > 0 && (
-              <div className="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg flex justify-between items-center">
-                <span className="text-green-700 dark:text-green-400 font-medium">
-                  Discount Applied:
-                </span>
-                <span className="text-green-700 dark:text-green-400 font-bold">
-                  -${discountAmount.toFixed(2)}
-                </span>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-        
-        {/* Payment Section */}
-        <Card className="shadow-card">
-          <CardHeader>
-            <CardTitle className="font-display flex items-center gap-2">
-              <DollarSign className="w-5 h-5" />
-              Payment
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            {/* Payment Amount */}
-            <div className="space-y-2">
-              <Label className="text-base">Payment Amount</Label>
-              <p className="text-sm text-muted-foreground">
-                Enter full amount or partial deposit
-              </p>
-              <div className="relative">
-                <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-                <Input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={paymentAmount}
-                  onChange={(e) => setPaymentAmount(e.target.value)}
-                  className="pl-10 text-xl h-14"
-                  placeholder="0.00"
-                />
-              </div>
-              
-              {/* Quick amount buttons */}
-              <div className="flex gap-2 mt-2">
-                <Button 
-                  type="button" 
-                  variant="outline" 
-                  size="sm"
-                  onClick={() => setPaymentAmount(balanceDue.toFixed(2))}
-                >
-                  Full (${balanceDue.toFixed(2)})
-                </Button>
-                {balanceDue > 20 && (
+                
+                {/* Payment type indicator */}
+                {amount > 0 && (
+                  <div className={`p-4 rounded-lg ${
+                    isFullPayment 
+                      ? 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800' 
+                      : 'bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800'
+                  }`}>
+                    {isFullPayment ? (
+                      <p className="font-semibold text-green-700 dark:text-green-400 flex items-center gap-2">
+                        <Check className="w-5 h-5" />
+                        Full payment - Ready for pickup!
+                      </p>
+                    ) : (
+                      <p className="font-semibold text-orange-700 dark:text-orange-400 flex items-center gap-2">
+                        <AlertCircle className="w-5 h-5" />
+                        Deposit - Remaining: ${(balanceDue - amount).toFixed(2)}
+                      </p>
+                    )}
+                  </div>
+                )}
+                
+                {/* Change due */}
+                {change > 0 && paymentMethod === 'cash' && (
+                  <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                    <p className="font-semibold text-blue-700 dark:text-blue-400 text-lg">
+                      Change Due: ${change.toFixed(2)}
+                    </p>
+                  </div>
+                )}
+                
+                {/* Payment Method */}
+                <div className="space-y-3">
+                  <Label className="text-base font-medium">Payment Method</Label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <Button
+                      type="button"
+                      variant={paymentMethod === 'cash' ? 'default' : 'outline'}
+                      className="h-16 flex flex-col gap-1"
+                      onClick={() => setPaymentMethod('cash')}
+                    >
+                      <Banknote className="w-6 h-6" />
+                      <span>Cash</span>
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={paymentMethod === 'card' ? 'default' : 'outline'}
+                      className="h-16 flex flex-col gap-1"
+                      onClick={() => setPaymentMethod('card')}
+                    >
+                      <CreditCard className="w-6 h-6" />
+                      <span>Card</span>
+                    </Button>
+                  </div>
+                </div>
+                
+                {/* Action Buttons */}
+                <div className="flex gap-3 pt-4 border-t">
                   <Button 
                     type="button" 
                     variant="outline" 
-                    size="sm"
-                    onClick={() => setPaymentAmount('20.00')}
+                    onClick={() => navigate(-1)}
+                    size="lg"
+                    className="flex-1"
                   >
-                    $20 Deposit
+                    <ArrowLeft className="w-4 h-4 mr-2" />
+                    Back
                   </Button>
-                )}
-                {balanceDue > 50 && (
-                  <Button 
-                    type="button" 
-                    variant="outline" 
-                    size="sm"
-                    onClick={() => setPaymentAmount('50.00')}
-                  >
-                    $50 Deposit
-                  </Button>
-                )}
-              </div>
-              
-              {/* Payment type indicator */}
-              {amount > 0 && (
-                <div className={`p-3 rounded-lg mt-3 ${
-                  isFullPayment 
-                    ? 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800' 
-                    : 'bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800'
-                }`}>
-                  {isFullPayment ? (
-                    <p className="font-medium text-green-700 dark:text-green-400">
-                      <Check className="w-4 h-4 inline mr-1" />
-                      Full payment - Customer is good to go!
-                    </p>
+                  
+                  {paymentMethod === 'cash' ? (
+                    <Button
+                      onClick={handleCashPayment}
+                      disabled={isProcessing || amount <= 0}
+                      size="lg"
+                      className="flex-1"
+                    >
+                      {isProcessing ? (
+                        <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Processing...</>
+                      ) : (
+                        <><Check className="w-4 h-4 mr-2" /> Pay Cash</>
+                      )}
+                    </Button>
                   ) : (
-                    <p className="font-medium text-orange-700 dark:text-orange-400">
-                      <AlertCircle className="w-4 h-4 inline mr-1" />
-                      Deposit - Remaining balance: ${(balanceDue - amount).toFixed(2)}
-                    </p>
+                    <Button
+                      onClick={() => setShowCardDialog(true)}
+                      disabled={amount <= 0}
+                      size="lg"
+                      className="flex-1"
+                    >
+                      <CreditCard className="w-4 h-4 mr-2" />
+                      Enter Card
+                    </Button>
                   )}
                 </div>
-              )}
-              
-              {/* Change due */}
-              {change > 0 && paymentMethod === 'cash' && (
-                <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-                  <p className="font-medium text-blue-700 dark:text-blue-400">
-                    Change Due: ${change.toFixed(2)}
-                  </p>
-                </div>
-              )}
-            </div>
-            
-            {/* Payment Method */}
-            <div className="space-y-3">
-              <Label className="text-base">Payment Method</Label>
-              <div className="grid grid-cols-2 gap-3">
-                <Button
-                  type="button"
-                  variant={paymentMethod === 'cash' ? 'default' : 'outline'}
-                  className={`h-20 flex flex-col gap-2 ${paymentMethod === 'cash' ? '' : ''}`}
-                  onClick={() => setPaymentMethod('cash')}
-                >
-                  <Banknote className="w-6 h-6" />
-                  Cash
-                </Button>
-                <Button
-                  type="button"
-                  variant={paymentMethod === 'card' ? 'default' : 'outline'}
-                  className="h-20 flex flex-col gap-2"
-                  onClick={() => setPaymentMethod('card')}
-                >
-                  <CreditCard className="w-6 h-6" />
-                  Credit Card
-                </Button>
-              </div>
-            </div>
-            
-            {/* Action Buttons */}
-            <div className="flex gap-3 pt-4">
-              <Button 
-                type="button" 
-                variant="outline" 
-                onClick={() => navigate(-1)}
-                className="flex-1"
-              >
-                <ArrowLeft className="w-4 h-4 mr-2" />
-                Back
-              </Button>
-              
-              {paymentMethod === 'cash' ? (
-                <Button
-                  onClick={handleCashPayment}
-                  disabled={isProcessing || amount <= 0}
-                  className="flex-1"
-                >
-                  {isProcessing ? (
-                    <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Processing...</>
-                  ) : (
-                    <><Check className="w-4 h-4 mr-2" /> Process Cash Payment</>
-                  )}
-                </Button>
-              ) : (
-                <Button
-                  onClick={() => setShowCardDialog(true)}
-                  disabled={amount <= 0}
-                  className="flex-1"
-                >
-                  <CreditCard className="w-4 h-4 mr-2" />
-                  Enter Card Details
-                </Button>
-              )}
-            </div>
-          </CardContent>
-        </Card>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
       </div>
       
       {/* Credit Card Dialog */}

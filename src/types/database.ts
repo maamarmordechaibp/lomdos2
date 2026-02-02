@@ -213,11 +213,32 @@ export interface Return {
   refund_transaction_id: string | null;
   original_payment_method: string | null;
   refunded_at: string | null;
+  return_to_supplier: boolean;
+  supplier_return_reason: string | null;
+  supplier_return_status: 'pending' | 'included_in_order' | 'sent' | 'completed' | null;
   created_at: string;
   updated_at: string;
   // Joined data
   book?: Book;
   supplier?: Supplier;
+}
+
+export interface SupplierReturnItem {
+  id: string;
+  return_id: string;
+  book_id: string;
+  supplier_id: string | null;
+  quantity: number;
+  reason: string;
+  reason_details: string | null;
+  status: 'pending' | 'included_in_order' | 'sent' | 'completed';
+  supplier_order_id: string | null;
+  created_at: string;
+  updated_at: string;
+  // Joined data
+  book?: Book;
+  supplier?: Supplier;
+  return?: Return;
 }
 
 export interface PendingSupplierAssignment {

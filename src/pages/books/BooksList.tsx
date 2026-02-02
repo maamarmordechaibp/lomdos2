@@ -536,7 +536,7 @@ export default function BooksList() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Discount Type</Label>
+                  <Label>Profit Type</Label>
                   <Select
                     value={editingBook.discount_type || 'percentage'}
                     onValueChange={(value: 'percentage' | 'fixed') => setEditingBook({ ...editingBook, discount_type: value })}
@@ -546,7 +546,7 @@ export default function BooksList() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="percentage">Percentage Margin (%)</SelectItem>
-                      <SelectItem value="fixed">Fixed Amount ($)</SelectItem>
+                      <SelectItem value="fixed">Fixed Profit Amount ($)</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

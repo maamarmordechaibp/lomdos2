@@ -754,33 +754,33 @@ export default function NewOrder() {
           </div>
           
           {/* Payment Section */}
-          <div className="border-t p-3 space-y-3 bg-muted/30">
+          <div className="border-t p-4 space-y-4 bg-muted/30">
             {/* Total */}
-            <div className="flex justify-between items-center">
-              <span className="text-lg">Total:</span>
-              <span className="text-2xl font-bold text-primary">${subtotal.toFixed(2)}</span>
+            <div className="flex justify-between items-center pb-2 border-b">
+              <span className="text-lg font-medium">Total:</span>
+              <span className="text-3xl font-bold text-primary">${subtotal.toFixed(2)}</span>
             </div>
             
             {/* Payment Amount */}
-            <div>
-              <Label className="text-xs">Payment Amount</Label>
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Payment Amount</Label>
               <div className="relative">
-                <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <DollarSign className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                 <Input
                   type="number"
                   value={paymentAmount}
                   onChange={(e) => setPaymentAmount(e.target.value)}
-                  className="pl-9 text-xl h-12 font-mono"
+                  className="pl-11 text-2xl h-14 font-bold"
                   placeholder="0.00"
                 />
               </div>
               {/* Quick amount buttons */}
               {subtotal > 0 && (
-                <div className="flex gap-1 mt-1 flex-wrap">
+                <div className="flex gap-2 flex-wrap">
                   <Button 
                     variant="outline" 
                     size="sm" 
-                    className="text-xs h-7"
+                    className="h-9"
                     onClick={() => setPaymentAmount(subtotal.toFixed(2))}
                   >
                     Full ${subtotal.toFixed(2)}
@@ -789,7 +789,7 @@ export default function NewOrder() {
                     <Button 
                       variant="outline" 
                       size="sm" 
-                      className="text-xs h-7"
+                      className="h-9"
                       onClick={() => setPaymentAmount('10.00')}
                     >
                       $10
@@ -799,7 +799,7 @@ export default function NewOrder() {
                     <Button 
                       variant="outline" 
                       size="sm" 
-                      className="text-xs h-7"
+                      className="h-9"
                       onClick={() => setPaymentAmount('20.00')}
                     >
                       $20
@@ -808,10 +808,10 @@ export default function NewOrder() {
                   <Button 
                     variant="outline" 
                     size="sm" 
-                    className="text-xs h-7"
+                    className="h-9"
                     onClick={() => setPaymentAmount('0')}
                   >
-                    $0
+                    $0 (No payment)
                   </Button>
                 </div>
               )}
@@ -820,40 +820,40 @@ export default function NewOrder() {
             {/* Change or Deposit indicator */}
             {subtotal > 0 && (
               change > 0 ? (
-                <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded text-green-700 dark:text-green-400 text-center font-bold">
-                  Change: ${change.toFixed(2)}
+                <div className="p-3 bg-green-100 dark:bg-green-900/30 rounded-lg text-green-700 dark:text-green-400 text-center">
+                  <span className="text-lg font-bold">Change: ${change.toFixed(2)}</span>
                 </div>
               ) : balanceDue > 0 ? (
-                <div className="p-2 bg-orange-100 dark:bg-orange-900/30 rounded text-orange-700 dark:text-orange-400 text-center text-sm">
-                  {amount > 0 ? 'Deposit' : 'No payment'} - Balance due: ${balanceDue.toFixed(2)}
+                <div className="p-3 bg-orange-100 dark:bg-orange-900/30 rounded-lg text-orange-700 dark:text-orange-400 text-center">
+                  {amount > 0 ? 'Deposit' : 'No payment'} - Balance: <span className="font-bold">${balanceDue.toFixed(2)}</span>
                 </div>
               ) : amount > 0 ? (
-                <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded text-green-700 dark:text-green-400 text-center text-sm">
-                  ✓ Full payment
+                <div className="p-3 bg-green-100 dark:bg-green-900/30 rounded-lg text-green-700 dark:text-green-400 text-center">
+                  ✓ Full payment - Ready for pickup!
                 </div>
               ) : null
             )}
             
             {/* Payment Buttons */}
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-2 gap-3 pt-2">
               <Button
                 size="lg"
                 variant="outline"
-                className="h-14 text-lg"
+                className="h-16 text-lg flex flex-col gap-1"
                 onClick={handleCashPayment}
                 disabled={!customer || cart.length === 0 || isProcessing}
               >
-                {isProcessing ? <Loader2 className="w-5 h-5 animate-spin" /> : <Banknote className="w-5 h-5 mr-2" />}
-                {amount > 0 ? 'Cash' : 'No Payment'}
+                {isProcessing ? <Loader2 className="w-6 h-6 animate-spin" /> : <Banknote className="w-6 h-6" />}
+                <span>{amount > 0 ? 'Cash' : 'No Payment'}</span>
               </Button>
               <Button
                 size="lg"
-                className="h-14 text-lg"
+                className="h-16 text-lg flex flex-col gap-1"
                 onClick={() => setShowCardDialog(true)}
                 disabled={!customer || cart.length === 0 || amount <= 0 || isProcessing}
               >
-                <CreditCard className="w-5 h-5 mr-2" />
-                Card
+                <CreditCard className="w-6 h-6" />
+                <span>Card</span>
               </Button>
             </div>
           </div>

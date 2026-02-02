@@ -64,6 +64,14 @@ const statusLabels: Record<string, string> = {
   completed: 'Completed',
 };
 
+const supplierReturnReasons: Record<string, string> = {
+  damaged: 'Damaged/Defective',
+  wrong_item: 'Wrong Item Received',
+  not_ordered: 'Not Ordered',
+  quality_issue: 'Quality Issue',
+  other: 'Other',
+};
+
 export default function Returns() {
   const queryClient = useQueryClient();
   const [isOpen, setIsOpen] = useState(false);
@@ -79,6 +87,8 @@ export default function Returns() {
     customer_order_id: '',
     refund_type: 'store_credit' as 'cash' | 'card' | 'store_credit',
     refund_amount: 0,
+    return_to_supplier: false,
+    supplier_return_reason: '' as string,
   });
 
   const [searchParams] = useSearchParams();
@@ -212,11 +222,27 @@ export default function Returns() {
           refund_amount: newReturn.refund_amount,
           original_payment_method: originalPaymentMethod || null,
           refunded_at: new Date().toISOString(),
+          return_to_supplier: newReturn.return_to_supplier,
+          supplier_return_reason: newReturn.supplier_return_reason || null,
+          supplier_return_status: newReturn.return_to_supplier ? 'pending' : null,
         })
         .select()
         .single();
       
       if (returnError) throw returnError;
+      
+      // If book needs to be returned to supplier, create supplier return item
+      if (newReturn.return_to_supplier && newReturn.supplier_id) {
+        await supabase.from('supplier_return_items').insert({
+          return_id: returnRecord.id,
+          book_id: newReturn.book_id,
+          supplier_id: newReturn.supplier_id,
+          quantity: newReturn.quantity,
+          reason: newReturn.supplier_return_reason || newReturn.reason,
+          reason_details: newReturn.reason_details,
+          status: 'pending',
+        });
+      }
 
       // Update the customer order status to 'returned' if linked
       if (newReturn.customer_order_id) {
@@ -352,6 +378,8 @@ export default function Returns() {
       customer_order_id: '',
       refund_type: 'store_credit',
       refund_amount: 0,
+      return_to_supplier: false,
+      supplier_return_reason: '',
     });
   };
 
@@ -653,6 +681,53 @@ export default function Returns() {
                       )}
                     </div>
                   )}
+
+                  {/* Return to Supplier Section */}
+                  <div className="space-y-4 p-4 border rounded-lg bg-blue-50/50 dark:bg-blue-900/10">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-base font-medium flex items-center gap-2">
+                        <Truck className="w-5 h-5 text-blue-500" />
+                        Return Book to Supplier?
+                      </Label>
+                      <input
+                        type="checkbox"
+                        checked={newReturn.return_to_supplier}
+                        onChange={(e) => setNewReturn({ ...newReturn, return_to_supplier: e.target.checked })}
+                        className="h-5 w-5 rounded border-gray-300 text-primary focus:ring-primary"
+                      />
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      If enabled, this book will be included in the next order to the supplier as a return
+                    </p>
+                    
+                    {newReturn.return_to_supplier && (
+                      <div className="space-y-3 mt-3 pt-3 border-t">
+                        <div className="space-y-2">
+                          <Label>Reason for Supplier Return</Label>
+                          <Select 
+                            value={newReturn.supplier_return_reason} 
+                            onValueChange={(v) => setNewReturn({ ...newReturn, supplier_return_reason: v })}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select reason" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="damaged">Damaged/Defective</SelectItem>
+                              <SelectItem value="wrong_item">Wrong Item Received</SelectItem>
+                              <SelectItem value="not_ordered">Not Ordered</SelectItem>
+                              <SelectItem value="quality_issue">Quality Issue</SelectItem>
+                              <SelectItem value="other">Other</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="p-3 bg-blue-100/50 dark:bg-blue-900/20 rounded-lg">
+                          <p className="text-sm text-blue-700 dark:text-blue-300">
+                            📦 This book will appear in "Pending Returns" and will be included when you next send an order to {selectedOrder?.book?.current_supplier?.name || 'the supplier'}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
 
                   <Button 
                     onClick={handleProcessReturn} 

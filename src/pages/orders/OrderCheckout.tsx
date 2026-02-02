@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { Switch } from '@/components/ui/switch';
 import { CustomerSearch } from '@/components/customers/CustomerSearch';
 import { useCreateCustomerOrder } from '@/hooks/useOrders';
 import { useFromStock } from '@/hooks/useInventory';
@@ -70,6 +71,9 @@ export default function OrderCheckout() {
   const [promoCodeError, setPromoCodeError] = useState<string | null>(null);
   const [isValidatingPromo, setIsValidatingPromo] = useState(false);
   
+  // Customer discount toggle - defaults to true when customer has discount
+  const [applyCustomerDiscount, setApplyCustomerDiscount] = useState(true);
+  
   // Card form
   const [cardNumber, setCardNumber] = useState('');
   const [cardExpiry, setCardExpiry] = useState('');
@@ -83,13 +87,19 @@ export default function OrderCheckout() {
     }
   }, []);
   
+  // Reset customer discount toggle when customer changes
+  useEffect(() => {
+    setApplyCustomerDiscount(true);
+  }, [customer?.id]);
+  
   // Calculations
   const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
   
-  // Calculate customer discount
+  // Calculate customer discount (only if toggle is on)
   let customerDiscountAmount = 0;
   let customerDiscountLabel = '';
-  if (customer?.default_discount_type && customer?.default_discount_value) {
+  const hasCustomerDiscount = customer?.default_discount_type && customer?.default_discount_value && customer.default_discount_value > 0;
+  if (hasCustomerDiscount && applyCustomerDiscount) {
     if (customer.default_discount_type === 'percentage') {
       customerDiscountAmount = subtotal * (customer.default_discount_value / 100);
       customerDiscountLabel = `${customer.default_discount_value}%`;
@@ -377,22 +387,37 @@ export default function OrderCheckout() {
               </CardHeader>
               <CardContent>
                 {customer ? (
-                  <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
-                    <div>
-                      <p className="font-medium text-lg">{customer.name}</p>
-                      <p className="text-sm text-muted-foreground">{customer.phone}</p>
-                      {customer.default_discount_type && customer.default_discount_value && customer.default_discount_value > 0 && (
-                        <Badge variant="secondary" className="mt-1 bg-green-100 dark:bg-green-900/30 text-green-700">
-                          <Percent className="w-3 h-3 mr-1" />
-                          {customer.default_discount_type === 'percentage' 
-                            ? `${customer.default_discount_value}% off` 
-                            : `$${customer.default_discount_value} off`}
-                        </Badge>
-                      )}
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
+                      <div>
+                        <p className="font-medium text-lg">{customer.name}</p>
+                        <p className="text-sm text-muted-foreground">{customer.phone}</p>
+                      </div>
+                      <Button variant="ghost" onClick={() => setCustomer(null)}>
+                        <X className="w-4 h-4" />
+                      </Button>
                     </div>
-                    <Button variant="ghost" onClick={() => setCustomer(null)}>
-                      <X className="w-4 h-4" />
-                    </Button>
+                    
+                    {/* Customer Discount Toggle */}
+                    {hasCustomerDiscount && (
+                      <div className="flex items-center justify-between p-3 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200">
+                        <div className="flex items-center gap-2">
+                          <Percent className="w-4 h-4 text-green-600" />
+                          <div>
+                            <p className="font-medium text-green-700">Customer Discount</p>
+                            <p className="text-sm text-green-600">
+                              {customer.default_discount_type === 'percentage' 
+                                ? `${customer.default_discount_value}% off` 
+                                : `$${customer.default_discount_value} off`}
+                            </p>
+                          </div>
+                        </div>
+                        <Switch
+                          checked={applyCustomerDiscount}
+                          onCheckedChange={setApplyCustomerDiscount}
+                        />
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <CustomerSearch onSelect={setCustomer} selectedCustomer={customer} />

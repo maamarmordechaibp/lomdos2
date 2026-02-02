@@ -127,12 +127,16 @@ export function useValidatePromoCode() {
     mutationFn: async ({ 
       code, 
       customerId, 
-      orderAmount 
+      orderAmount,
+      orderTotal, // alias for orderAmount
     }: { 
       code: string; 
-      customerId: string; 
-      orderAmount: number;
-    }): Promise<{ valid: boolean; promo?: PromoCode; error?: string; discountAmount?: number }> => {
+      customerId?: string | null; 
+      orderAmount?: number;
+      orderTotal?: number;
+    }): Promise<{ valid: boolean; promoCode?: PromoCode; error?: string; discountAmount?: number }> => {
+      const amount = orderAmount ?? orderTotal ?? 0;
+      
       // Find the promo code
       const { data: promo, error } = await supabase
         .from('promo_codes')
@@ -164,27 +168,29 @@ export function useValidatePromoCode() {
       }
       
       // Check minimum order amount
-      if (promo.minimum_order_amount !== null && orderAmount < promo.minimum_order_amount) {
+      if (promo.minimum_order_amount !== null && amount < promo.minimum_order_amount) {
         return { valid: false, error: `Minimum order amount is $${promo.minimum_order_amount}` };
       }
       
-      // Check customer usage
-      const { data: usages } = await supabase
-        .from('promo_code_usage')
-        .select('id')
-        .eq('promo_code_id', promo.id)
-        .eq('customer_id', customerId);
-      
-      if (usages && usages.length >= promo.max_uses_per_customer) {
-        return { valid: false, error: 'You have already used this promo code' };
+      // Check customer usage (only if customerId provided)
+      if (customerId) {
+        const { data: usages } = await supabase
+          .from('promo_code_usage')
+          .select('id')
+          .eq('promo_code_id', promo.id)
+          .eq('customer_id', customerId);
+        
+        if (usages && usages.length >= promo.max_uses_per_customer) {
+          return { valid: false, error: 'You have already used this promo code' };
+        }
       }
       
       // Calculate discount
       const discountAmount = promo.discount_type === 'percentage'
-        ? (orderAmount * promo.discount_value / 100)
-        : Math.min(promo.discount_value, orderAmount);
+        ? (amount * promo.discount_value / 100)
+        : Math.min(promo.discount_value, amount);
       
-      return { valid: true, promo: promo as PromoCode, discountAmount };
+      return { valid: true, promoCode: promo as PromoCode, discountAmount };
     },
   });
 }

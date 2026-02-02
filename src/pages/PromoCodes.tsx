@@ -277,59 +277,56 @@ export default function PromoCodes() {
       
       {/* Create/Edit Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) resetForm(); }}>
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
+        <DialogContent className="sm:max-w-lg max-h-[90vh] flex flex-col">
+          <DialogHeader className="pb-2">
             <DialogTitle className="flex items-center gap-2">
               <Tag className="w-5 h-5" />
               {editingPromo ? 'Edit Promo Code' : 'Create Promo Code'}
             </DialogTitle>
-            <DialogDescription>
-              {editingPromo ? 'Update the promo code details' : 'Create a new discount code for customers'}
-            </DialogDescription>
           </DialogHeader>
           
-          <div className="space-y-4 py-4">
-            {/* Code */}
-            <div className="space-y-2">
-              <Label>Promo Code *</Label>
-              <Input
-                value={formData.code}
-                onChange={(e) => setFormData({ ...formData, code: e.target.value.toUpperCase() })}
-                placeholder="e.g., SAVE20, WELCOME10"
-                className="font-mono text-lg uppercase"
-              />
-              <p className="text-xs text-muted-foreground">This is what customers will enter at checkout</p>
-            </div>
-            
-            {/* Description */}
-            <div className="space-y-2">
-              <Label>Description (optional)</Label>
-              <Input
-                value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                placeholder="e.g., Summer sale discount"
-              />
+          <div className="space-y-3 py-2 overflow-y-auto flex-1 pr-2">
+            {/* Code & Description in same row */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">Promo Code *</Label>
+                <Input
+                  value={formData.code}
+                  onChange={(e) => setFormData({ ...formData, code: e.target.value.toUpperCase() })}
+                  placeholder="SAVE20"
+                  className="font-mono uppercase h-9"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Description</Label>
+                <Input
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  placeholder="Summer sale"
+                  className="h-9"
+                />
+              </div>
             </div>
             
             {/* Discount Type & Value */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Discount Type</Label>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">Discount Type</Label>
                 <Select 
                   value={formData.discount_type} 
                   onValueChange={(v: 'percentage' | 'fixed') => setFormData({ ...formData, discount_type: v })}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="h-9">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="percentage">Percentage (%)</SelectItem>
-                    <SelectItem value="fixed">Fixed Amount ($)</SelectItem>
+                    <SelectItem value="fixed">Fixed ($)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-2">
-                <Label>Discount Value *</Label>
+              <div className="space-y-1">
+                <Label className="text-xs">Value *</Label>
                 <div className="relative">
                   {formData.discount_type === 'percentage' ? (
                     <Percent className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -339,84 +336,76 @@ export default function PromoCodes() {
                   <Input
                     type="number"
                     min="0"
-                    step={formData.discount_type === 'percentage' ? '1' : '0.01'}
-                    max={formData.discount_type === 'percentage' ? '100' : undefined}
                     value={formData.discount_value}
                     onChange={(e) => setFormData({ ...formData, discount_value: e.target.value })}
-                    className="pl-9"
-                    placeholder={formData.discount_type === 'percentage' ? '10' : '5.00'}
+                    className="pl-9 h-9"
+                    placeholder="10"
                   />
                 </div>
               </div>
             </div>
             
             {/* Date Range */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Start Date (optional)</Label>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">Start Date</Label>
                 <Input
                   type="date"
                   value={formData.start_date}
                   onChange={(e) => setFormData({ ...formData, start_date: e.target.value })}
+                  className="h-9"
                 />
               </div>
-              <div className="space-y-2">
-                <Label>End Date (optional)</Label>
+              <div className="space-y-1">
+                <Label className="text-xs">End Date</Label>
                 <Input
                   type="date"
                   value={formData.end_date}
                   onChange={(e) => setFormData({ ...formData, end_date: e.target.value })}
+                  className="h-9"
                 />
               </div>
             </div>
             
-            {/* Usage Limits */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Max Total Uses</Label>
+            {/* Usage Limits & Minimum - all in one row */}
+            <div className="grid grid-cols-3 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">Max Uses</Label>
                 <Input
                   type="number"
                   min="1"
                   value={formData.max_uses}
                   onChange={(e) => setFormData({ ...formData, max_uses: e.target.value })}
-                  placeholder="Unlimited"
+                  placeholder="∞"
+                  className="h-9"
                 />
-                <p className="text-xs text-muted-foreground">Leave empty for unlimited</p>
               </div>
-              <div className="space-y-2">
-                <Label>Uses Per Customer</Label>
+              <div className="space-y-1">
+                <Label className="text-xs">Per Customer</Label>
                 <Input
                   type="number"
                   min="1"
                   value={formData.max_uses_per_customer}
                   onChange={(e) => setFormData({ ...formData, max_uses_per_customer: e.target.value })}
+                  className="h-9"
                 />
               </div>
-            </div>
-            
-            {/* Minimum Order */}
-            <div className="space-y-2">
-              <Label>Minimum Order Amount</Label>
-              <div className="relative">
-                <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <div className="space-y-1">
+                <Label className="text-xs">Min. Order $</Label>
                 <Input
                   type="number"
                   min="0"
-                  step="0.01"
                   value={formData.minimum_order_amount}
                   onChange={(e) => setFormData({ ...formData, minimum_order_amount: e.target.value })}
-                  className="pl-9"
-                  placeholder="No minimum"
+                  placeholder="0"
+                  className="h-9"
                 />
               </div>
             </div>
             
             {/* Active Toggle */}
-            <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
-              <div>
-                <Label>Active</Label>
-                <p className="text-xs text-muted-foreground">Promo code can be used by customers</p>
-              </div>
+            <div className="flex items-center justify-between p-2 bg-muted rounded-lg">
+              <Label className="text-sm">Active</Label>
               <Switch
                 checked={formData.is_active}
                 onCheckedChange={(checked) => setFormData({ ...formData, is_active: checked })}
@@ -424,15 +413,16 @@ export default function PromoCodes() {
             </div>
           </div>
           
-          <DialogFooter>
-            <Button variant="outline" onClick={() => { setIsDialogOpen(false); resetForm(); }}>
+          <DialogFooter className="pt-2">
+            <Button variant="outline" size="sm" onClick={() => { setIsDialogOpen(false); resetForm(); }}>
               Cancel
             </Button>
             <Button 
+              size="sm"
               onClick={handleSubmit} 
               disabled={createPromo.isPending || updatePromo.isPending}
             >
-              {editingPromo ? 'Update' : 'Create'} Promo Code
+              {editingPromo ? 'Update' : 'Create'}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -10,7 +10,8 @@ import { supabase } from "@/integrations/supabase/client";
 import Login from "./pages/Login";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
-import NewOrder from "./pages/orders/NewOrder";
+import NewOrder from "./pages/orders/NewOrderSimple";
+import OrderCheckout from "./pages/orders/OrderCheckout";
 import OrdersList from "./pages/orders/OrdersList";
 import PendingSupplier from "./pages/PendingSupplier";
 import CustomersList from "./pages/customers/CustomersList";
@@ -106,6 +107,11 @@ const App = () => (
             <Route path="/orders/new" element={
               <ProtectedRoute>
                 <NewOrder />
+              </ProtectedRoute>
+            } />
+            <Route path="/orders/checkout" element={
+              <ProtectedRoute>
+                <OrderCheckout />
               </ProtectedRoute>
             } />
             <Route path="/pickups" element={

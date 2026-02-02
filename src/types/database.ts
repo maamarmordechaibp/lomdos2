@@ -6,6 +6,8 @@ export interface Customer {
   notification_preference: 'phone' | 'email';
   outstanding_balance: number;
   store_credit: number;
+  default_discount_type: 'percentage' | 'fixed' | null;
+  default_discount_value: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -94,6 +96,10 @@ export interface CustomerOrder {
   total_amount: number | null;
   balance_due: number | null;
   is_bill: boolean;
+  discount_type: 'percentage' | 'fixed' | null;
+  discount_value: number | null;
+  discount_reason: string | null;
+  original_price: number | null;
   picked_up_at: string | null;
   notes: string | null;
   created_at: string;

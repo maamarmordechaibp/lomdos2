@@ -128,17 +128,7 @@ export function useDeleteSupplier() {
   
   return useMutation({
     mutationFn: async (id: string) => {
-      // First check if supplier has any related data
-      const { data: books } = await supabase
-        .from('books')
-        .select('id')
-        .eq('current_supplier_id', id)
-        .limit(1);
-      
-      if (books && books.length > 0) {
-        throw new Error('Cannot delete supplier with assigned books. Please reassign books first.');
-      }
-      
+      // Check for pending orders - can't delete if there are active orders
       const { data: orders } = await supabase
         .from('supplier_orders')
         .select('id')
@@ -150,6 +140,13 @@ export function useDeleteSupplier() {
         throw new Error('Cannot delete supplier with pending orders.');
       }
       
+      // Unassign all books from this supplier (they'll become "pending supplier")
+      await supabase
+        .from('books')
+        .update({ current_supplier_id: null })
+        .eq('current_supplier_id', id);
+      
+      // Now delete the supplier
       const { error } = await supabase
         .from('suppliers')
         .delete()
@@ -158,7 +155,8 @@ export function useDeleteSupplier() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['suppliers'] });
-      toast.success('Supplier deleted successfully');
+      queryClient.invalidateQueries({ queryKey: ['books'] });
+      toast.success('Supplier deleted. Books are now pending supplier assignment.');
     },
     onError: (error) => {
       toast.error('Failed to delete supplier: ' + error.message);

@@ -8,6 +8,17 @@ ALTER TABLE public.books ADD COLUMN IF NOT EXISTS discount_type TEXT DEFAULT 'pe
 -- Add store_credit field to customers for tracking store credit balance
 ALTER TABLE public.customers ADD COLUMN IF NOT EXISTS store_credit DECIMAL(10, 2) DEFAULT 0;
 
+-- Add customer default discount settings
+-- Customers can have a default discount that applies to all their orders
+ALTER TABLE public.customers ADD COLUMN IF NOT EXISTS default_discount_type TEXT DEFAULT NULL CHECK (default_discount_type IN ('percentage', 'fixed'));
+ALTER TABLE public.customers ADD COLUMN IF NOT EXISTS default_discount_value DECIMAL(10, 2) DEFAULT NULL;
+
+-- Add discount tracking to customer_orders for per-transaction discounts
+ALTER TABLE public.customer_orders ADD COLUMN IF NOT EXISTS discount_type TEXT DEFAULT NULL CHECK (discount_type IN ('percentage', 'fixed'));
+ALTER TABLE public.customer_orders ADD COLUMN IF NOT EXISTS discount_value DECIMAL(10, 2) DEFAULT NULL;
+ALTER TABLE public.customer_orders ADD COLUMN IF NOT EXISTS discount_reason TEXT DEFAULT NULL;
+ALTER TABLE public.customer_orders ADD COLUMN IF NOT EXISTS original_price DECIMAL(10, 2) DEFAULT NULL;
+
 -- Add refund tracking to returns table
 ALTER TABLE public.returns ADD COLUMN IF NOT EXISTS refund_type TEXT DEFAULT NULL CHECK (refund_type IN ('cash', 'card', 'store_credit'));
 ALTER TABLE public.returns ADD COLUMN IF NOT EXISTS refund_amount DECIMAL(10, 2) DEFAULT NULL;

@@ -15,7 +15,16 @@ import {
   ArrowLeft,
   Loader2,
   X,
+  Percent,
+  Tag,
 } from 'lucide-react';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { useCustomerOrders, useUpdateCustomerOrder } from '@/hooks/useOrders';
 import { useSettings } from '@/hooks/useSettings';
 import { CustomerOrder } from '@/types/database';
@@ -47,16 +56,41 @@ export default function Checkout() {
   const [showCardDialog, setShowCardDialog] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   
+  // Discount state
+  const [discountType, setDiscountType] = useState<'none' | 'percentage' | 'fixed'>('none');
+  const [discountValue, setDiscountValue] = useState('');
+  const [discountReason, setDiscountReason] = useState('');
+  
   // Card form state
   const [cardNumber, setCardNumber] = useState('');
   const [cardExpiry, setCardExpiry] = useState('');
   const [cardCvv, setCardCvv] = useState('');
   const [cardZip, setCardZip] = useState('');
   
+  const customer = orders[0]?.customer;
+  
+  // Apply customer default discount on load
+  useEffect(() => {
+    if (customer?.default_discount_type && customer.default_discount_type !== 'none' && customer.default_discount_value) {
+      setDiscountType(customer.default_discount_type as 'percentage' | 'fixed');
+      setDiscountValue(customer.default_discount_value.toString());
+      setDiscountReason('Customer default discount');
+    }
+  }, [customer]);
+  
   // Calculate totals
-  const totalAmount = orders.reduce((sum, order) => sum + (order.final_price || 0), 0);
+  const subtotal = orders.reduce((sum, order) => sum + (order.final_price || 0), 0);
   const totalPaid = orders.reduce((sum, order) => sum + (order.amount_paid || 0), 0);
-  const balanceDue = totalAmount - totalPaid;
+  
+  // Calculate discount amount
+  const discountAmount = discountType === 'none' || !discountValue 
+    ? 0 
+    : discountType === 'percentage' 
+      ? (subtotal * parseFloat(discountValue) / 100)
+      : parseFloat(discountValue);
+  
+  const totalAmount = Math.max(0, subtotal - discountAmount);
+  const balanceDue = Math.max(0, totalAmount - totalPaid);
   
   // Set default payment amount to balance due
   useEffect(() => {
@@ -77,21 +111,40 @@ export default function Checkout() {
     
     setIsProcessing(true);
     try {
+      // Calculate the discount per order (proportionally)
+      const discountPerOrder = discountAmount / orders.length;
+      
       for (const order of orders) {
-        const orderBalance = (order.final_price || 0) - (order.amount_paid || 0);
-        const paymentForOrder = Math.min(amount, orderBalance);
-        const newAmountPaid = (order.amount_paid || 0) + paymentForOrder;
-        const orderTotal = order.final_price || 0;
-        const isPaidInFull = newAmountPaid >= orderTotal;
+        // Apply discount to order if any
+        const originalPrice = order.final_price || 0;
+        const orderFinalPrice = discountAmount > 0 
+          ? Math.max(0, originalPrice - discountPerOrder)
+          : originalPrice;
         
-        await updateOrder.mutateAsync({
+        const orderBalance = orderFinalPrice - (order.amount_paid || 0);
+        const paymentForOrder = Math.min(amount, Math.max(0, orderBalance));
+        const newAmountPaid = (order.amount_paid || 0) + paymentForOrder;
+        const isPaidInFull = newAmountPaid >= orderFinalPrice;
+        
+        const updateData: any = {
           id: order.id,
           payment_status: isPaidInFull ? 'paid' : 'partial',
           payment_method: order.payment_method === 'card' ? 'mixed' : 'cash',
           amount_paid: newAmountPaid,
-          balance_due: orderTotal - newAmountPaid,
+          balance_due: Math.max(0, orderFinalPrice - newAmountPaid),
           status: isPaidInFull ? 'ready' : order.status,
-        });
+        };
+        
+        // Add discount info if discount applied
+        if (discountAmount > 0) {
+          updateData.original_price = originalPrice;
+          updateData.final_price = orderFinalPrice;
+          updateData.discount_type = discountType;
+          updateData.discount_value = parseFloat(discountValue);
+          updateData.discount_reason = discountReason || null;
+        }
+        
+        await updateOrder.mutateAsync(updateData);
         
         // Record payment
         await supabase.from('customer_payments').insert({
@@ -153,22 +206,41 @@ export default function Checkout() {
       if (error) throw error;
       
       if (result.success) {
+        // Calculate the discount per order (proportionally)
+        const discountPerOrder = discountAmount / orders.length;
+        
         // Update orders
         for (const order of orders) {
-          const orderBalance = (order.final_price || 0) - (order.amount_paid || 0);
-          const paymentForOrder = Math.min(amount, orderBalance);
-          const newAmountPaid = (order.amount_paid || 0) + paymentForOrder;
-          const orderTotal = order.final_price || 0;
-          const isPaidInFull = newAmountPaid >= orderTotal;
+          // Apply discount to order if any
+          const originalPrice = order.final_price || 0;
+          const orderFinalPrice = discountAmount > 0 
+            ? Math.max(0, originalPrice - discountPerOrder)
+            : originalPrice;
           
-          await updateOrder.mutateAsync({
+          const orderBalance = orderFinalPrice - (order.amount_paid || 0);
+          const paymentForOrder = Math.min(amount, Math.max(0, orderBalance));
+          const newAmountPaid = (order.amount_paid || 0) + paymentForOrder;
+          const isPaidInFull = newAmountPaid >= orderFinalPrice;
+          
+          const updateData: any = {
             id: order.id,
             payment_status: isPaidInFull ? 'paid' : 'partial',
             payment_method: order.payment_method === 'cash' ? 'mixed' : 'card',
             amount_paid: newAmountPaid,
-            balance_due: orderTotal - newAmountPaid,
+            balance_due: Math.max(0, orderFinalPrice - newAmountPaid),
             status: isPaidInFull ? 'ready' : order.status,
-          });
+          };
+          
+          // Add discount info if discount applied
+          if (discountAmount > 0) {
+            updateData.original_price = originalPrice;
+            updateData.final_price = orderFinalPrice;
+            updateData.discount_type = discountType;
+            updateData.discount_value = parseFloat(discountValue);
+            updateData.discount_reason = discountReason || null;
+          }
+          
+          await updateOrder.mutateAsync(updateData);
           
           // Record payment
           await supabase.from('customer_payments').insert({
@@ -242,8 +314,6 @@ export default function Checkout() {
     );
   }
   
-  const customer = orders[0]?.customer;
-  
   return (
     <AppLayout title="Checkout" subtitle="Process customer payment">
       <div className="max-w-2xl mx-auto space-y-6 animate-fade-in">
@@ -284,8 +354,14 @@ export default function Checkout() {
             <div className="pt-3 space-y-2 bg-muted/50 p-4 rounded-lg">
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Subtotal:</span>
-                <span>${totalAmount.toFixed(2)}</span>
+                <span>${subtotal.toFixed(2)}</span>
               </div>
+              {discountAmount > 0 && (
+                <div className="flex justify-between text-green-600">
+                  <span>Discount ({discountType === 'percentage' ? `${discountValue}%` : `$${discountValue}`}):</span>
+                  <span>-${discountAmount.toFixed(2)}</span>
+                </div>
+              )}
               {totalPaid > 0 && (
                 <div className="flex justify-between text-green-600">
                   <span>Already Paid:</span>
@@ -299,6 +375,86 @@ export default function Checkout() {
                 </span>
               </div>
             </div>
+          </CardContent>
+        </Card>
+        
+        {/* Discount Section */}
+        <Card className="shadow-card">
+          <CardHeader>
+            <CardTitle className="font-display flex items-center gap-2">
+              <Tag className="w-5 h-5" />
+              Discount
+              {customer?.default_discount_type && customer.default_discount_type !== 'none' && (
+                <span className="text-sm font-normal text-muted-foreground ml-2">
+                  (Customer default applied)
+                </span>
+              )}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Discount Type</Label>
+                <Select 
+                  value={discountType} 
+                  onValueChange={(v) => setDiscountType(v as 'none' | 'percentage' | 'fixed')}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No Discount</SelectItem>
+                    <SelectItem value="percentage">Percentage (%)</SelectItem>
+                    <SelectItem value="fixed">Fixed Amount ($)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              {discountType !== 'none' && (
+                <div className="space-y-2">
+                  <Label>{discountType === 'percentage' ? 'Percentage' : 'Amount'}</Label>
+                  <div className="relative">
+                    {discountType === 'percentage' ? (
+                      <Percent className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    ) : (
+                      <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    )}
+                    <Input
+                      type="number"
+                      min="0"
+                      step={discountType === 'percentage' ? '1' : '0.01'}
+                      max={discountType === 'percentage' ? '100' : undefined}
+                      value={discountValue}
+                      onChange={(e) => setDiscountValue(e.target.value)}
+                      className="pl-9"
+                      placeholder={discountType === 'percentage' ? '10' : '5.00'}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+            
+            {discountType !== 'none' && (
+              <div className="space-y-2">
+                <Label>Reason (optional)</Label>
+                <Input
+                  value={discountReason}
+                  onChange={(e) => setDiscountReason(e.target.value)}
+                  placeholder="e.g., Loyal customer, Promo code, etc."
+                />
+              </div>
+            )}
+            
+            {discountAmount > 0 && (
+              <div className="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg flex justify-between items-center">
+                <span className="text-green-700 dark:text-green-400 font-medium">
+                  Discount Applied:
+                </span>
+                <span className="text-green-700 dark:text-green-400 font-bold">
+                  -${discountAmount.toFixed(2)}
+                </span>
+              </div>
+            )}
           </CardContent>
         </Card>
         

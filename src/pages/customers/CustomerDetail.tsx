@@ -436,6 +436,8 @@ export default function CustomerDetail() {
         phone: customer.phone,
         email: customer.email,
         notification_preference: customer.notification_preference,
+        default_discount_type: customer.default_discount_type || 'none',
+        default_discount_value: customer.default_discount_value || 0,
       });
       setIsEditing(true);
     }
@@ -647,6 +649,36 @@ export default function CustomerDetail() {
                       </SelectContent>
                     </Select>
                   </div>
+                  <div className="space-y-2 pt-2 border-t">
+                    <Label>Default Discount (optional)</Label>
+                    <div className="flex gap-2">
+                      <Select
+                        value={editForm.default_discount_type || 'none'}
+                        onValueChange={(v: any) => setEditForm({ ...editForm, default_discount_type: v === 'none' ? null : v })}
+                      >
+                        <SelectTrigger className="w-32">
+                          <SelectValue placeholder="None" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">No discount</SelectItem>
+                          <SelectItem value="percentage">% Off</SelectItem>
+                          <SelectItem value="fixed">$ Off</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      {editForm.default_discount_type && (
+                        <Input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={editForm.default_discount_value || ''}
+                          onChange={(e) => setEditForm({ ...editForm, default_discount_value: parseFloat(e.target.value) || null })}
+                          placeholder={editForm.default_discount_type === 'percentage' ? '10' : '5.00'}
+                          className="flex-1"
+                        />
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground">This discount will apply automatically at checkout</p>
+                  </div>
                 </>
               ) : (
                 <>
@@ -677,6 +709,16 @@ export default function CustomerDetail() {
                     <Bell className="w-4 h-4 text-muted-foreground" />
                     <span>{notificationLabels[customer.notification_preference] || 'Phone Call'}</span>
                   </div>
+                  {customer.default_discount_type && customer.default_discount_value && (
+                    <div className="flex items-center gap-2 pt-2 border-t">
+                      <Badge variant="secondary" className="bg-green-100 text-green-700">
+                        {customer.default_discount_type === 'percentage' 
+                          ? `${customer.default_discount_value}% off` 
+                          : `$${customer.default_discount_value} off`}
+                      </Badge>
+                      <span className="text-xs text-muted-foreground">Default discount</span>
+                    </div>
+                  )}
                   <div className="text-xs text-muted-foreground pt-2">
                     Customer since {format(new Date(customer.created_at), 'MMM d, yyyy')}
                   </div>

@@ -107,6 +107,15 @@ serve(async (req) => {
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+    // Fetch store settings for branding
+    const { data: settings } = await supabase
+      .from("global_settings")
+      .select("store_name, store_logo_url")
+      .single();
+    
+    const storeName = settings?.store_name || "New Square Bookstore";
+    const storeLogoUrl = settings?.store_logo_url || null;
+
     const body = await req.json();
 
     // Check if this is a direct/stock order request
@@ -118,14 +127,15 @@ serve(async (req) => {
       }
 
       const subject = `Stock Order Request - ${items.length} item(s)`;
-      const messageContent = generateStockOrderEmail(supplierName, items, notes);
+      const messageContent = generateStockOrderEmail(supplierName, items, notes, storeName);
 
       const result = await sendEmail({
         resendApiKey,
         to: supplierEmail,
         subject,
-        htmlContent: generateSupplierEmailHtml(subject, messageContent, supplierName),
+        htmlContent: generateSupplierEmailHtml(subject, messageContent, supplierName, storeName, storeLogoUrl),
         textContent: messageContent,
+        storeName,
       });
 
       return new Response(
@@ -182,11 +192,11 @@ serve(async (req) => {
     switch (email_type) {
       case "new_order":
         subject = subject || `New Order Request - Order #${supplier_order_id.slice(0, 8)}`;
-        messageContent = generateNewOrderEmail(supplier.name, order.items || []);
+        messageContent = generateNewOrderEmail(supplier.name, order.items || [], storeName);
         break;
       case "order_update":
         subject = subject || `Order Update - Order #${supplier_order_id.slice(0, 8)}`;
-        messageContent = generateOrderUpdateEmail(supplier.name, order);
+        messageContent = generateOrderUpdateEmail(supplier.name, order, storeName);
         break;
       case "custom":
         if (!subject || !messageContent) {
@@ -200,8 +210,9 @@ serve(async (req) => {
       resendApiKey,
       to: supplier.email,
       subject,
-      htmlContent: generateSupplierEmailHtml(subject, messageContent, supplier.name),
+      htmlContent: generateSupplierEmailHtml(subject, messageContent, supplier.name, storeName, storeLogoUrl),
       textContent: messageContent,
+      storeName,
     });
 
     // Update supplier order status if it was a new order email
@@ -225,7 +236,7 @@ serve(async (req) => {
   }
 });
 
-function generateNewOrderEmail(supplierName: string, items: OrderItem[]): string {
+function generateNewOrderEmail(supplierName: string, items: OrderItem[], storeName: string): string {
   // Consolidate duplicate books and sort by category then title
   const consolidatedItems = consolidateItems(items);
   const sortedItems = sortItemsByCategoryAndTitle(consolidatedItems);
@@ -275,13 +286,14 @@ Please confirm receipt of this order and provide an estimated delivery date.
 Thank you for your continued partnership.
 
 Best regards,
-New Square Bookstore`;
+${storeName}`;
 }
 
 function generateStockOrderEmail(
   supplierName: string, 
   items: Array<{ bookTitle: string; quantity: number; cost?: number; category?: string }>,
-  notes?: string
+  notes: string | undefined,
+  storeName: string
 ): string {
   // Consolidate duplicate book titles
   const bookMap = new Map<string, { bookTitle: string; quantity: number; cost?: number; category?: string }>();
@@ -351,10 +363,10 @@ Please confirm receipt of this order and provide an estimated delivery date.
 Thank you for your continued partnership.
 
 Best regards,
-New Square Bookstore`;
+${storeName}`;
 }
 
-function generateOrderUpdateEmail(supplierName: string, order: any): string {
+function generateOrderUpdateEmail(supplierName: string, order: any, storeName: string): string {
   return `Dear ${supplierName},
 
 This is an update regarding Order #${order.id.slice(0, 8)}.
@@ -365,11 +377,15 @@ ${order.notes ? `\nNotes: ${order.notes}` : ''}
 Please let us know if you have any questions.
 
 Best regards,
-New Square Bookstore`;
+${storeName}`;
 }
 
-function generateSupplierEmailHtml(subject: string, content: string, supplierName: string): string {
+function generateSupplierEmailHtml(subject: string, content: string, supplierName: string, storeName: string, storeLogoUrl: string | null): string {
   const formattedContent = content.replace(/\n/g, '<br>');
+  // Build logo HTML if URL is provided
+  const logoHtml = storeLogoUrl 
+    ? `<img src="${storeLogoUrl}" alt="${storeName}" style="max-height: 60px; max-width: 200px; margin-bottom: 10px; object-fit: contain;">`
+    : '';
   
   return `
     <!DOCTYPE html>
@@ -380,8 +396,9 @@ function generateSupplierEmailHtml(subject: string, content: string, supplierNam
       <title>${subject}</title>
     </head>
     <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 700px; margin: 0 auto; padding: 20px;">
-      <div style="background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%); padding: 30px; border-radius: 10px 10px 0 0;">
-        <h1 style="color: white; margin: 0; font-size: 24px;">New Square Bookstore</h1>
+      <div style="background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%); padding: 30px; border-radius: 10px 10px 0 0; text-align: center;">
+        ${logoHtml}
+        <h1 style="color: white; margin: 0; font-size: 24px;">${storeName}</h1>
         <p style="color: rgba(255,255,255,0.9); margin: 5px 0 0 0; font-size: 14px;">Supplier Order Communication</p>
       </div>
       <div style="background: #f9fafb; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 10px 10px;">
@@ -389,8 +406,8 @@ function generateSupplierEmailHtml(subject: string, content: string, supplierNam
           <p style="margin: 0; font-size: 15px; white-space: pre-line;">${formattedContent}</p>
         </div>
         <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
-        <p style="font-size: 12px; color: #9ca3af; margin: 0;">
-          New Square Bookstore<br>
+        <p style="font-size: 12px; color: #9ca3af; margin: 0; text-align: center;">
+          ${storeName}<br>
           This is an automated message from our order management system.
         </p>
       </div>
@@ -405,12 +422,14 @@ async function sendEmail({
   subject,
   htmlContent,
   textContent,
+  storeName,
 }: {
   resendApiKey: string;
   to: string;
   subject: string;
   htmlContent: string;
   textContent: string;
+  storeName: string;
 }) {
   const response = await fetch("https://api.resend.com/emails", {
     method: "POST",
@@ -419,7 +438,7 @@ async function sendEmail({
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      from: "New Square Bookstore <orders@maamarmordechai.com>",
+      from: `${storeName} <orders@maamarmordechai.com>`,
       to: [to],
       subject: subject,
       html: htmlContent,

@@ -444,7 +444,17 @@ export default function CustomerDetail() {
   };
 
   const handleSave = () => {
-    updateCustomer.mutate(editForm);
+    // Clean up the form data before saving
+    const cleanedForm = {
+      ...editForm,
+      // Convert 'none' to null for database
+      default_discount_type: editForm.default_discount_type === 'none' ? null : editForm.default_discount_type,
+      // Clear value if no type selected
+      default_discount_value: editForm.default_discount_type && editForm.default_discount_type !== 'none' 
+        ? editForm.default_discount_value 
+        : null,
+    };
+    updateCustomer.mutate(cleanedForm);
   };
 
   const handlePrint = () => {
@@ -709,16 +719,27 @@ export default function CustomerDetail() {
                     <Bell className="w-4 h-4 text-muted-foreground" />
                     <span>{notificationLabels[customer.notification_preference] || 'Phone Call'}</span>
                   </div>
-                  {customer.default_discount_type && customer.default_discount_value && (
-                    <div className="flex items-center gap-2 pt-2 border-t">
-                      <Badge variant="secondary" className="bg-green-100 text-green-700">
-                        {customer.default_discount_type === 'percentage' 
-                          ? `${customer.default_discount_value}% off` 
-                          : `$${customer.default_discount_value} off`}
-                      </Badge>
-                      <span className="text-xs text-muted-foreground">Default discount</span>
+                  
+                  {/* Default Discount Section - Always show */}
+                  <div className="pt-3 mt-3 border-t">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-muted-foreground">Default Discount</span>
+                      <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={handleEdit}>
+                        <Edit2 className="w-3 h-3 mr-1" />
+                        {customer.default_discount_type && customer.default_discount_value ? 'Edit' : 'Add'}
+                      </Button>
                     </div>
-                  )}
+                    {customer.default_discount_type && customer.default_discount_value ? (
+                      <Badge variant="secondary" className="mt-2 bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                        {customer.default_discount_type === 'percentage' 
+                          ? `${customer.default_discount_value}% off every order` 
+                          : `$${customer.default_discount_value} off every order`}
+                      </Badge>
+                    ) : (
+                      <p className="text-sm text-muted-foreground mt-1">No discount set</p>
+                    )}
+                  </div>
+                  
                   <div className="text-xs text-muted-foreground pt-2">
                     Customer since {format(new Date(customer.created_at), 'MMM d, yyyy')}
                   </div>

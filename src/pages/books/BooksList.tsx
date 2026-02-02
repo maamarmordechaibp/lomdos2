@@ -56,6 +56,8 @@ export default function BooksList() {
     default_cost: null as number | null,
     no_profit: false,
     custom_profit_margin: null as number | null,
+    fixed_discount: null as number | null,
+    discount_type: 'percentage' as 'percentage' | 'fixed',
   });
 
   const { data: books, isLoading } = useBooks(search);
@@ -124,6 +126,8 @@ export default function BooksList() {
       default_cost: null,
       no_profit: false,
       custom_profit_margin: null,
+      fixed_discount: null,
+      discount_type: 'percentage',
     });
   };
 
@@ -532,14 +536,44 @@ export default function BooksList() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Custom Profit Margin (%)</Label>
-                  <Input
-                    type="number"
-                    value={editingBook.custom_profit_margin || ''}
-                    onChange={(e) => setEditingBook({ ...editingBook, custom_profit_margin: parseFloat(e.target.value) || null })}
-                    placeholder="Use default"
-                  />
+                  <Label>Discount Type</Label>
+                  <Select
+                    value={editingBook.discount_type || 'percentage'}
+                    onValueChange={(value: 'percentage' | 'fixed') => setEditingBook({ ...editingBook, discount_type: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="percentage">Percentage Margin (%)</SelectItem>
+                      <SelectItem value="fixed">Fixed Amount ($)</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
+                {editingBook.discount_type === 'percentage' ? (
+                  <div className="space-y-2">
+                    <Label>Custom Profit Margin (%)</Label>
+                    <Input
+                      type="number"
+                      value={editingBook.custom_profit_margin || ''}
+                      onChange={(e) => setEditingBook({ ...editingBook, custom_profit_margin: parseFloat(e.target.value) || null })}
+                      placeholder="Use default"
+                    />
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <Label>Fixed Profit Amount ($)</Label>
+                    <Input
+                      type="number"
+                      value={editingBook.fixed_discount || ''}
+                      onChange={(e) => setEditingBook({ ...editingBook, fixed_discount: parseFloat(e.target.value) || null })}
+                      placeholder="e.g., 5.00"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      This amount will be added to the cost to get the selling price
+                    </p>
+                  </div>
+                )}
                 <div className="flex items-center justify-between">
                   <Label>No Profit (return/special)</Label>
                   <Switch

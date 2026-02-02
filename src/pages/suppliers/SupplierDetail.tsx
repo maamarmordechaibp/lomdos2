@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -24,9 +24,13 @@ import {
   Receipt,
   CheckCircle,
   XCircle,
-  ExternalLink
+  ExternalLink,
+  Edit2,
+  Save,
+  X,
+  Trash2,
 } from 'lucide-react';
-import { useSupplier, useSupplierBooks } from '@/hooks/useSuppliers';
+import { useSupplier, useSupplierBooks, useUpdateSupplier, useDeleteSupplier } from '@/hooks/useSuppliers';
 import { useCustomerOrders, useSupplierOrders, useCreateSupplierOrder } from '@/hooks/useOrders';
 import { useEmailSupplier } from '@/hooks/useSupplierEmail';
 import { useSupplierPayments, useCreateSupplierPayment } from '@/hooks/useBalances';
@@ -58,9 +62,20 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 export default function SupplierDetail() {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const { data: supplier, isLoading: supplierLoading } = useSupplier(id);
   const { data: supplierBooks } = useSupplierBooks(id);
   const { data: allOrders } = useCustomerOrders();
@@ -69,10 +84,21 @@ export default function SupplierDetail() {
   const createSupplierOrder = useCreateSupplierOrder();
   const emailSupplier = useEmailSupplier();
   const createPayment = useCreateSupplierPayment();
+  const updateSupplier = useUpdateSupplier();
+  const deleteSupplier = useDeleteSupplier();
 
   const [isSending, setIsSending] = useState(false);
   const [paymentDialog, setPaymentDialog] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [editForm, setEditForm] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    address: '',
+    notes: '',
+  });
   const [paymentForm, setPaymentForm] = useState({
     amount: '',
     method: 'check' as 'cash' | 'check' | 'credit' | 'wire' | 'other',
@@ -89,6 +115,43 @@ export default function SupplierDetail() {
     order.status === 'pending' && 
     order.book?.current_supplier_id === id
   ) || [];
+
+  const handleStartEdit = () => {
+    if (supplier) {
+      setEditForm({
+        name: supplier.name,
+        email: supplier.email,
+        phone: supplier.phone || '',
+        address: supplier.address || '',
+        notes: supplier.notes || '',
+      });
+      setIsEditing(true);
+    }
+  };
+
+  const handleSaveEdit = async () => {
+    if (!id) return;
+    await updateSupplier.mutateAsync({
+      id,
+      name: editForm.name,
+      email: editForm.email,
+      phone: editForm.phone || null,
+      address: editForm.address || null,
+      notes: editForm.notes || null,
+    });
+    setIsEditing(false);
+  };
+
+  const handleDelete = async () => {
+    if (!id) return;
+    try {
+      await deleteSupplier.mutateAsync(id);
+      navigate('/suppliers');
+    } catch (error) {
+      // Error is handled by the hook
+    }
+    setShowDeleteDialog(false);
+  };
 
   const handleSendOrder = async () => {
     if (pendingOrders.length === 0) {
@@ -211,45 +274,110 @@ export default function SupplierDetail() {
       title={supplier.name}
       subtitle="Supplier details and pending orders"
       actions={
-        <Button variant="outline" asChild>
-          <Link to="/suppliers">
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Back
-          </Link>
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setShowDeleteDialog(true)}>
+            <Trash2 className="w-4 h-4 mr-2" />
+            Delete
+          </Button>
+          <Button variant="outline" asChild>
+            <Link to="/suppliers">
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Back
+            </Link>
+          </Button>
+        </div>
       }
     >
       <div className="space-y-6 animate-fade-in">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Supplier Info */}
           <Card className="shadow-card">
-            <CardHeader>
+            <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle className="font-display flex items-center gap-2">
                 <Truck className="w-5 h-5" />
                 Contact Information
               </CardTitle>
+              {!isEditing ? (
+                <Button variant="ghost" size="sm" onClick={handleStartEdit}>
+                  <Edit2 className="w-4 h-4" />
+                </Button>
+              ) : (
+                <div className="flex gap-1">
+                  <Button variant="ghost" size="sm" onClick={() => setIsEditing(false)}>
+                    <X className="w-4 h-4" />
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={handleSaveEdit} disabled={updateSupplier.isPending}>
+                    <Save className="w-4 h-4" />
+                  </Button>
+                </div>
+              )}
             </CardHeader>
             <CardContent className="space-y-3">
-              <div className="flex items-center gap-3">
-                <Mail className="w-4 h-4 text-muted-foreground" />
-                <span>{supplier.email}</span>
-              </div>
-              {supplier.phone && (
-                <div className="flex items-center gap-3">
-                  <Phone className="w-4 h-4 text-muted-foreground" />
-                  <span>{supplier.phone}</span>
-                </div>
-              )}
-              {supplier.address && (
-                <div className="flex items-start gap-3">
-                  <MapPin className="w-4 h-4 text-muted-foreground mt-0.5" />
-                  <span className="whitespace-pre-line">{supplier.address}</span>
-                </div>
-              )}
-              {supplier.notes && (
-                <div className="pt-3 border-t border-border">
-                  <p className="text-sm text-muted-foreground">{supplier.notes}</p>
-                </div>
+              {isEditing ? (
+                <>
+                  <div className="space-y-2">
+                    <Label>Name</Label>
+                    <Input
+                      value={editForm.name}
+                      onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Email</Label>
+                    <Input
+                      type="email"
+                      value={editForm.email}
+                      onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Phone</Label>
+                    <Input
+                      value={editForm.phone}
+                      onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Address</Label>
+                    <Textarea
+                      value={editForm.address}
+                      onChange={(e) => setEditForm({ ...editForm, address: e.target.value })}
+                      rows={2}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Notes</Label>
+                    <Textarea
+                      value={editForm.notes}
+                      onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })}
+                      rows={2}
+                    />
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="flex items-center gap-3">
+                    <Mail className="w-4 h-4 text-muted-foreground" />
+                    <span>{supplier.email}</span>
+                  </div>
+                  {supplier.phone && (
+                    <div className="flex items-center gap-3">
+                      <Phone className="w-4 h-4 text-muted-foreground" />
+                      <span>{supplier.phone}</span>
+                    </div>
+                  )}
+                  {supplier.address && (
+                    <div className="flex items-start gap-3">
+                      <MapPin className="w-4 h-4 text-muted-foreground mt-0.5" />
+                      <span className="whitespace-pre-line">{supplier.address}</span>
+                    </div>
+                  )}
+                  {supplier.notes && (
+                    <div className="pt-3 border-t border-border">
+                      <p className="text-sm text-muted-foreground">{supplier.notes}</p>
+                    </div>
+                  )}
+                </>
               )}
               
               {/* Outstanding Balance */}
@@ -676,6 +804,28 @@ export default function SupplierDetail() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Supplier</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete "{supplier.name}"? This action cannot be undone.
+              The supplier will only be deleted if they have no assigned books or pending orders.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleteSupplier.isPending ? 'Deleting...' : 'Delete'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AppLayout>
   );
 }

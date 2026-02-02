@@ -12,7 +12,12 @@ import {
   User,
   Package,
   CheckCircle,
-  ArrowRight
+  ArrowRight,
+  DollarSign,
+  CreditCard,
+  Banknote,
+  Gift,
+  Loader2,
 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -20,6 +25,8 @@ import { Return, Customer, CustomerOrder } from '@/types/database';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -39,6 +46,10 @@ import { useSuppliers } from '@/hooks/useSuppliers';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { CustomerSearch } from '@/components/customers/CustomerSearch';
+import {
+  RadioGroup,
+  RadioGroupItem,
+} from '@/components/ui/radio-group';
 
 const reasonLabels: Record<string, string> = {
   damaged: 'Damaged',
@@ -58,6 +69,7 @@ export default function Returns() {
   const [isOpen, setIsOpen] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [selectedOrder, setSelectedOrder] = useState<CustomerOrder | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
   const [newReturn, setNewReturn] = useState({
     book_id: '',
     supplier_id: '',
@@ -65,6 +77,8 @@ export default function Returns() {
     reason_details: '',
     quantity: 1,
     customer_order_id: '',
+    refund_type: 'store_credit' as 'cash' | 'card' | 'store_credit',
+    refund_amount: 0,
   });
 
   const [searchParams] = useSearchParams();
@@ -124,6 +138,154 @@ export default function Returns() {
       return data as Return[];
     },
   });
+
+  // Calculate refund amount when order is selected
+  useEffect(() => {
+    if (selectedOrder) {
+      const unitPrice = selectedOrder.final_price || selectedOrder.total_amount || 0;
+      const refundAmount = (unitPrice / selectedOrder.quantity) * newReturn.quantity;
+      setNewReturn(prev => ({ ...prev, refund_amount: refundAmount }));
+    }
+  }, [selectedOrder, newReturn.quantity]);
+
+  // Process the return with refund
+  const handleProcessReturn = async () => {
+    if (!newReturn.book_id) {
+      toast.error('Please select a book or order to return');
+      return;
+    }
+    if (!newReturn.supplier_id) {
+      toast.error('Please select a supplier to return to');
+      return;
+    }
+
+    setIsProcessing(true);
+    try {
+      const originalPaymentMethod = selectedOrder?.payment_method;
+      
+      // If original payment was card and refund type is card, process card refund
+      if (newReturn.refund_type === 'card' && originalPaymentMethod === 'card') {
+        // For card refunds, we would call the Sola/Cardknox refund endpoint
+        // This requires the original transaction ID
+        const { data: originalPayment } = await supabase
+          .from('customer_payments')
+          .select('transaction_id')
+          .eq('order_id', selectedOrder?.id)
+          .eq('payment_method', 'card')
+          .single();
+        
+        if (!originalPayment?.transaction_id) {
+          toast.error('Cannot find original card transaction for refund. Please process as cash refund or store credit.');
+          setIsProcessing(false);
+          return;
+        }
+
+        // Call refund endpoint (would need to create this edge function)
+        const { data: refundResult, error: refundError } = await supabase.functions.invoke('process-sola-payment', {
+          body: {
+            amount: newReturn.refund_amount,
+            isRefund: true,
+            originalTransactionId: originalPayment.transaction_id,
+            customerId: selectedCustomer?.id,
+          }
+        });
+
+        if (refundError || !refundResult?.success) {
+          toast.error(refundResult?.message || 'Card refund failed. Please try cash refund or store credit.');
+          setIsProcessing(false);
+          return;
+        }
+      }
+
+      // Create return record
+      const { data: returnRecord, error: returnError } = await supabase
+        .from('returns')
+        .insert({
+          book_id: newReturn.book_id,
+          supplier_id: newReturn.supplier_id,
+          reason: newReturn.reason,
+          reason_details: newReturn.reason_details,
+          quantity: newReturn.quantity,
+          customer_order_id: newReturn.customer_order_id || null,
+          status: 'pending',
+          refund_type: newReturn.refund_type,
+          refund_amount: newReturn.refund_amount,
+          original_payment_method: originalPaymentMethod || null,
+          refunded_at: new Date().toISOString(),
+        })
+        .select()
+        .single();
+      
+      if (returnError) throw returnError;
+
+      // Update the customer order status to 'returned' if linked
+      if (newReturn.customer_order_id) {
+        await supabase
+          .from('customer_orders')
+          .update({ status: 'returned' })
+          .eq('id', newReturn.customer_order_id);
+      }
+
+      // Handle refund based on type
+      if (selectedCustomer && newReturn.refund_amount > 0) {
+        if (newReturn.refund_type === 'store_credit') {
+          // Add to customer's store credit
+          const currentCredit = selectedCustomer.store_credit || 0;
+          await supabase
+            .from('customers')
+            .update({ store_credit: currentCredit + newReturn.refund_amount })
+            .eq('id', selectedCustomer.id);
+          
+          toast.success(`Return processed. $${newReturn.refund_amount.toFixed(2)} added to store credit.`);
+        } else if (newReturn.refund_type === 'cash' || newReturn.refund_type === 'card') {
+          // Create negative payment record to track the refund
+          await supabase.from('customer_payments').insert({
+            customer_id: selectedCustomer.id,
+            order_id: selectedOrder?.id || null,
+            amount: newReturn.refund_amount,
+            payment_method: newReturn.refund_type,
+            is_refund: true,
+            return_id: returnRecord.id,
+            notes: `Refund for return - ${reasonLabels[newReturn.reason]}`,
+          });
+          
+          // Update customer balance if they had outstanding balance
+          const currentBalance = selectedCustomer.outstanding_balance || 0;
+          if (currentBalance > 0) {
+            const newBalance = Math.max(0, currentBalance - newReturn.refund_amount);
+            await supabase
+              .from('customers')
+              .update({ outstanding_balance: newBalance })
+              .eq('id', selectedCustomer.id);
+          }
+          
+          toast.success(`Return processed. $${newReturn.refund_amount.toFixed(2)} refunded via ${newReturn.refund_type}.`);
+        }
+      }
+
+      // Update inventory (add book back to stock)
+      const book = books?.find(b => b.id === newReturn.book_id);
+      if (book) {
+        await supabase
+          .from('books')
+          .update({ quantity_in_stock: (book.quantity_in_stock || 0) + newReturn.quantity })
+          .eq('id', newReturn.book_id);
+      }
+
+      queryClient.invalidateQueries({ queryKey: ['returns'] });
+      queryClient.invalidateQueries({ queryKey: ['customer-orders'] });
+      queryClient.invalidateQueries({ queryKey: ['customers'] });
+      queryClient.invalidateQueries({ queryKey: ['customer', selectedCustomer?.id] });
+      queryClient.invalidateQueries({ queryKey: ['books'] });
+      
+      setIsOpen(false);
+      resetForm();
+    } catch (error: any) {
+      toast.error('Failed to process return: ' + error.message);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
 
   const createReturn = useMutation({
     mutationFn: async (returnData: typeof newReturn) => {
@@ -188,6 +350,8 @@ export default function Returns() {
       reason_details: '', 
       quantity: 1,
       customer_order_id: '',
+      refund_type: 'store_credit',
+      refund_amount: 0,
     });
   };
 
@@ -195,12 +359,19 @@ export default function Returns() {
     setSelectedOrder(order);
     // Get supplier from book's current_supplier
     const supplierId = order.book?.current_supplier?.id || order.book?.current_supplier_id || '';
+    // Determine default refund type based on original payment method
+    const defaultRefundType = order.payment_method === 'card' ? 'card' : 'cash';
+    const unitPrice = order.final_price || order.total_amount || 0;
+    const refundAmount = (unitPrice / order.quantity) * order.quantity;
+    
     setNewReturn({
       ...newReturn,
       book_id: order.book_id,
       supplier_id: supplierId,
       customer_order_id: order.id,
       quantity: order.quantity,
+      refund_type: defaultRefundType as 'cash' | 'card' | 'store_credit',
+      refund_amount: refundAmount,
     });
   };
 
@@ -406,13 +577,99 @@ export default function Returns() {
                     />
                   </div>
 
+                  {/* Refund Section - Only show for customer returns with an order */}
+                  {selectedOrder && selectedCustomer && (
+                    <div className="space-y-4 p-4 border rounded-lg bg-muted/30">
+                      <Label className="text-base font-medium flex items-center gap-2">
+                        <DollarSign className="w-5 h-5" />
+                        Refund Options
+                      </Label>
+                      
+                      <div className="space-y-2">
+                        <Label>Refund Amount</Label>
+                        <div className="relative">
+                          <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                          <Input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={newReturn.refund_amount}
+                            onChange={(e) => setNewReturn({ ...newReturn, refund_amount: parseFloat(e.target.value) || 0 })}
+                            className="pl-9"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-3">
+                        <Label>Refund Method</Label>
+                        <RadioGroup 
+                          value={newReturn.refund_type}
+                          onValueChange={(value: 'cash' | 'card' | 'store_credit') => setNewReturn({ ...newReturn, refund_type: value })}
+                          className="grid grid-cols-1 gap-2"
+                        >
+                          {selectedOrder.payment_method === 'card' && (
+                            <div className="flex items-center space-x-3 p-3 border rounded-lg hover:bg-muted/50 cursor-pointer">
+                              <RadioGroupItem value="card" id="refund-card" />
+                              <Label htmlFor="refund-card" className="flex items-center gap-2 cursor-pointer flex-1">
+                                <CreditCard className="w-4 h-4 text-blue-500" />
+                                <div>
+                                  <div className="font-medium">Refund to Card</div>
+                                  <div className="text-xs text-muted-foreground">Process refund back to original card</div>
+                                </div>
+                              </Label>
+                            </div>
+                          )}
+                          
+                          <div className="flex items-center space-x-3 p-3 border rounded-lg hover:bg-muted/50 cursor-pointer">
+                            <RadioGroupItem value="cash" id="refund-cash" />
+                            <Label htmlFor="refund-cash" className="flex items-center gap-2 cursor-pointer flex-1">
+                              <Banknote className="w-4 h-4 text-green-500" />
+                              <div>
+                                <div className="font-medium">Cash Refund</div>
+                                <div className="text-xs text-muted-foreground">Give cash back to customer</div>
+                              </div>
+                            </Label>
+                          </div>
+                          
+                          <div className="flex items-center space-x-3 p-3 border rounded-lg hover:bg-muted/50 cursor-pointer">
+                            <RadioGroupItem value="store_credit" id="refund-credit" />
+                            <Label htmlFor="refund-credit" className="flex items-center gap-2 cursor-pointer flex-1">
+                              <Gift className="w-4 h-4 text-purple-500" />
+                              <div>
+                                <div className="font-medium">Store Credit</div>
+                                <div className="text-xs text-muted-foreground">Add to customer's store credit balance</div>
+                              </div>
+                            </Label>
+                          </div>
+                        </RadioGroup>
+                      </div>
+
+                      {selectedOrder.payment_method === 'card' && newReturn.refund_type !== 'card' && (
+                        <div className="p-3 bg-orange-500/10 border border-orange-500/20 rounded-lg">
+                          <p className="text-sm text-orange-600">
+                            ⚠️ Original payment was by card. Are you sure you want to give a {newReturn.refund_type} refund instead?
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   <Button 
-                    onClick={handleCreate} 
+                    onClick={handleProcessReturn} 
                     className="w-full"
-                    disabled={createReturn.isPending}
+                    disabled={isProcessing}
                   >
-                    <RotateCcw className="w-4 h-4 mr-2" />
-                    Process Return
+                    {isProcessing ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Processing...
+                      </>
+                    ) : (
+                      <>
+                        <RotateCcw className="w-4 h-4 mr-2" />
+                        Process Return
+                      </>
+                    )}
                   </Button>
                 </div>
               )}
@@ -462,6 +719,17 @@ export default function Returns() {
                           <p className="mt-2 text-sm text-muted-foreground">
                             {ret.reason_details}
                           </p>
+                        )}
+                        {/* Show refund info */}
+                        {ret.refund_amount && ret.refund_amount > 0 && (
+                          <div className="mt-2 flex items-center gap-2">
+                            <Badge variant={ret.refund_type === 'store_credit' ? 'secondary' : 'outline'} className="flex items-center gap-1">
+                              {ret.refund_type === 'card' && <CreditCard className="w-3 h-3" />}
+                              {ret.refund_type === 'cash' && <Banknote className="w-3 h-3" />}
+                              {ret.refund_type === 'store_credit' && <Gift className="w-3 h-3" />}
+                              ${ret.refund_amount.toFixed(2)} {ret.refund_type?.replace('_', ' ')}
+                            </Badge>
+                          </div>
                         )}
                       </div>
                     </div>

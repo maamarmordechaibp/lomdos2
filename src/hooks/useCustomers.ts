@@ -87,3 +87,47 @@ export function useUpdateCustomer() {
     },
   });
 }
+
+export function useDeleteCustomer() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async (id: string) => {
+      // Check for pending orders
+      const { data: orders } = await supabase
+        .from('customer_orders')
+        .select('id')
+        .eq('customer_id', id)
+        .in('status', ['pending', 'ordered', 'received', 'ready'])
+        .limit(1);
+      
+      if (orders && orders.length > 0) {
+        throw new Error('Cannot delete customer with pending orders. Please complete or cancel orders first.');
+      }
+      
+      // Check for outstanding balance
+      const { data: customer } = await supabase
+        .from('customers')
+        .select('outstanding_balance')
+        .eq('id', id)
+        .single();
+      
+      if (customer && customer.outstanding_balance > 0) {
+        throw new Error('Cannot delete customer with outstanding balance.');
+      }
+      
+      const { error } = await supabase
+        .from('customers')
+        .delete()
+        .eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['customers'] });
+      toast.success('Customer deleted successfully');
+    },
+    onError: (error) => {
+      toast.error('Failed to delete customer: ' + error.message);
+    },
+  });
+}

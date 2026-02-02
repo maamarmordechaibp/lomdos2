@@ -122,3 +122,46 @@ export function useUpdateSupplier() {
     },
   });
 }
+
+export function useDeleteSupplier() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async (id: string) => {
+      // First check if supplier has any related data
+      const { data: books } = await supabase
+        .from('books')
+        .select('id')
+        .eq('current_supplier_id', id)
+        .limit(1);
+      
+      if (books && books.length > 0) {
+        throw new Error('Cannot delete supplier with assigned books. Please reassign books first.');
+      }
+      
+      const { data: orders } = await supabase
+        .from('supplier_orders')
+        .select('id')
+        .eq('supplier_id', id)
+        .in('status', ['pending', 'sent', 'partial'])
+        .limit(1);
+      
+      if (orders && orders.length > 0) {
+        throw new Error('Cannot delete supplier with pending orders.');
+      }
+      
+      const { error } = await supabase
+        .from('suppliers')
+        .delete()
+        .eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['suppliers'] });
+      toast.success('Supplier deleted successfully');
+    },
+    onError: (error) => {
+      toast.error('Failed to delete supplier: ' + error.message);
+    },
+  });
+}

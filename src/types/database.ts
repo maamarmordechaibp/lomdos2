@@ -5,6 +5,7 @@ export interface Customer {
   email: string | null;
   notification_preference: 'phone' | 'email';
   outstanding_balance: number;
+  store_credit: number;
   created_at: string;
   updated_at: string;
 }
@@ -34,6 +35,8 @@ export interface Book {
   default_cost: number | null;
   no_profit: boolean;
   custom_profit_margin: number | null;
+  fixed_discount: number | null;
+  discount_type: 'percentage' | 'fixed';
   quantity_in_stock: number;
   low_stock_threshold: number;
   reorder_quantity: number;
@@ -128,6 +131,12 @@ export interface CustomerPayment {
   payment_method: 'cash' | 'card' | 'check' | 'other';
   transaction_id: string | null;
   notes: string | null;
+  is_edited: boolean;
+  original_amount: number | null;
+  edit_reason: string | null;
+  edited_at: string | null;
+  is_refund: boolean;
+  return_id: string | null;
   created_at: string;
   // Joined data
   customer?: Customer;
@@ -193,6 +202,11 @@ export interface Return {
   reason_details: string | null;
   status: 'pending' | 'sent' | 'completed';
   quantity: number;
+  refund_type: 'cash' | 'card' | 'store_credit' | null;
+  refund_amount: number | null;
+  refund_transaction_id: string | null;
+  original_payment_method: string | null;
+  refunded_at: string | null;
   created_at: string;
   updated_at: string;
   // Joined data

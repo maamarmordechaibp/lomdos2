@@ -31,6 +31,8 @@ import {
   CheckCircle,
   Clock,
   Loader2,
+  Trash2,
+  Pencil,
 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -40,6 +42,7 @@ import { format } from 'date-fns';
 import { OrderStatusBadge } from '@/components/orders/OrderStatusBadge';
 import { PaymentStatusBadge } from '@/components/orders/PaymentStatusBadge';
 import { useClickToCall } from '@/hooks/useCallLogs';
+import { useDeleteCustomer } from '@/hooks/useCustomers';
 import {
   Dialog,
   DialogContent,
@@ -63,6 +66,16 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 export default function CustomerDetail() {
   const { id } = useParams<{ id: string }>();
@@ -70,6 +83,7 @@ export default function CustomerDetail() {
   const queryClient = useQueryClient();
   const printRef = useRef<HTMLDivElement>(null);
   const clickToCall = useClickToCall();
+  const deleteCustomer = useDeleteCustomer();
   
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState<Partial<Customer>>({});
@@ -81,6 +95,13 @@ export default function CustomerDetail() {
   const [cardExpiry, setCardExpiry] = useState('');
   const [cardCvv, setCardCvv] = useState('');
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  
+  // Edit payment state
+  const [editPaymentDialog, setEditPaymentDialog] = useState(false);
+  const [editingPayment, setEditingPayment] = useState<CustomerPayment | null>(null);
+  const [editPaymentAmount, setEditPaymentAmount] = useState('');
+  const [editPaymentReason, setEditPaymentReason] = useState('');
 
   // Format card number with spaces
   const formatCardNumber = (value: string) => {
@@ -327,6 +348,87 @@ export default function CustomerDetail() {
     unpaidOrders: orders.filter(o => o.payment_status !== 'paid').length,
   } : null;
 
+  // Handle delete customer
+  const handleDeleteCustomer = async () => {
+    if (!id) return;
+    try {
+      await deleteCustomer.mutateAsync(id);
+      navigate('/customers');
+    } catch (error) {
+      // Error is handled by the hook
+    }
+    setShowDeleteDialog(false);
+  };
+
+  // Handle edit payment (cash only)
+  const handleOpenEditPayment = (payment: CustomerPayment) => {
+    if (payment.payment_method === 'card') {
+      toast.error('Card payments cannot be edited. Please process a refund instead.');
+      return;
+    }
+    setEditingPayment(payment);
+    setEditPaymentAmount(payment.amount.toString());
+    setEditPaymentReason('');
+    setEditPaymentDialog(true);
+  };
+
+  const handleEditPayment = async () => {
+    if (!editingPayment || !id) return;
+    
+    const newAmount = parseFloat(editPaymentAmount);
+    if (isNaN(newAmount) || newAmount < 0) {
+      toast.error('Please enter a valid amount');
+      return;
+    }
+    
+    if (!editPaymentReason.trim()) {
+      toast.error('Please provide a reason for this edit');
+      return;
+    }
+    
+    const oldAmount = editingPayment.amount;
+    const difference = newAmount - oldAmount;
+    
+    try {
+      // Update the payment record
+      const { error: paymentError } = await supabase
+        .from('customer_payments')
+        .update({
+          amount: newAmount,
+          is_edited: true,
+          original_amount: editingPayment.original_amount || oldAmount,
+          edit_reason: editPaymentReason,
+          edited_at: new Date().toISOString(),
+        })
+        .eq('id', editingPayment.id);
+      
+      if (paymentError) throw paymentError;
+      
+      // Adjust customer balance based on difference
+      // If we increase the payment amount, decrease the balance (more was paid)
+      // If we decrease the payment amount, increase the balance (less was paid)
+      const currentBalance = customer?.outstanding_balance || 0;
+      const newBalance = Math.max(0, currentBalance - difference);
+      
+      const { error: balanceError } = await supabase
+        .from('customers')
+        .update({ outstanding_balance: newBalance })
+        .eq('id', id);
+      
+      if (balanceError) throw balanceError;
+      
+      queryClient.invalidateQueries({ queryKey: ['customer', id] });
+      queryClient.invalidateQueries({ queryKey: ['customer-payments', id] });
+      queryClient.invalidateQueries({ queryKey: ['customers-with-balance'] });
+      
+      toast.success('Payment updated successfully');
+      setEditPaymentDialog(false);
+      setEditingPayment(null);
+    } catch (error: any) {
+      toast.error('Failed to update payment: ' + error.message);
+    }
+  };
+
   const handleEdit = () => {
     if (customer) {
       setEditForm({
@@ -467,6 +569,10 @@ export default function CustomerDetail() {
               Process Return
             </Link>
           </Button>
+          <Button variant="outline" onClick={() => setShowDeleteDialog(true)}>
+            <Trash2 className="w-4 h-4 mr-2" />
+            Delete
+          </Button>
           <Button asChild variant="outline">
             <Link to="/customers">
               <ArrowLeft className="w-4 h-4 mr-2" />
@@ -584,13 +690,20 @@ export default function CustomerDetail() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <DollarSign className="w-5 h-5" />
-                Outstanding Balance
+                Balance
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className={`text-4xl font-bold mb-4 ${(customer.outstanding_balance || 0) > 0 ? 'text-orange-600' : 'text-green-600'}`}>
+              <div className={`text-3xl font-bold mb-2 ${(customer.outstanding_balance || 0) > 0 ? 'text-orange-600' : 'text-green-600'}`}>
                 ${(customer.outstanding_balance || 0).toFixed(2)}
+                <span className="text-sm font-normal text-muted-foreground ml-2">owed</span>
               </div>
+              {(customer.store_credit || 0) > 0 && (
+                <div className="text-lg font-medium text-purple-600 mb-3">
+                  ${(customer.store_credit || 0).toFixed(2)}
+                  <span className="text-sm font-normal text-muted-foreground ml-2">store credit</span>
+                </div>
+              )}
               {(customer.outstanding_balance || 0) > 0 ? (
                 <Button onClick={handleOpenPaymentDialog} className="w-full">
                   <CreditCard className="w-4 h-4 mr-2" />
@@ -736,6 +849,7 @@ export default function CustomerDetail() {
                         <TableHead>Method</TableHead>
                         <TableHead>Order</TableHead>
                         <TableHead>Notes</TableHead>
+                        <TableHead>Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -744,8 +858,13 @@ export default function CustomerDetail() {
                           <TableCell className="whitespace-nowrap">
                             {format(new Date(payment.created_at), 'MM/dd/yy h:mm a')}
                           </TableCell>
-                          <TableCell className="font-medium text-green-600">
-                            ${payment.amount.toFixed(2)}
+                          <TableCell className={`font-medium ${payment.is_refund ? 'text-red-600' : 'text-green-600'}`}>
+                            {payment.is_refund ? '-' : ''}${payment.amount.toFixed(2)}
+                            {payment.is_edited && (
+                              <span className="ml-1 text-xs text-orange-500" title={`Original: $${payment.original_amount?.toFixed(2) || payment.amount.toFixed(2)}`}>
+                                (edited)
+                              </span>
+                            )}
                           </TableCell>
                           <TableCell className="capitalize">{payment.payment_method}</TableCell>
                           <TableCell>
@@ -753,6 +872,23 @@ export default function CustomerDetail() {
                           </TableCell>
                           <TableCell className="text-muted-foreground">
                             {payment.notes || '-'}
+                            {payment.edit_reason && (
+                              <div className="text-xs text-orange-500">Edit reason: {payment.edit_reason}</div>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {payment.payment_method !== 'card' && !payment.is_refund && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleOpenEditPayment(payment)}
+                              >
+                                <Pencil className="w-3 h-3" />
+                              </Button>
+                            )}
+                            {payment.payment_method === 'card' && (
+                              <span className="text-xs text-muted-foreground">Card - refund only</span>
+                            )}
                           </TableCell>
                         </TableRow>
                       ))}
@@ -874,6 +1010,78 @@ export default function CustomerDetail() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Edit Payment Dialog (Cash only) */}
+      <Dialog open={editPaymentDialog} onOpenChange={setEditPaymentDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit Payment</DialogTitle>
+            <DialogDescription>
+              Edit this cash payment. Card payments must be refunded through the processor.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            {editingPayment?.original_amount && (
+              <div className="p-3 bg-orange-500/10 rounded-lg text-sm">
+                <span className="text-orange-600">Original amount: ${editingPayment.original_amount.toFixed(2)}</span>
+              </div>
+            )}
+            <div className="space-y-2">
+              <Label>Current Amount</Label>
+              <div className="text-lg font-medium">${editingPayment?.amount.toFixed(2)}</div>
+            </div>
+            <div className="space-y-2">
+              <Label>New Amount</Label>
+              <div className="relative">
+                <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={editPaymentAmount}
+                  onChange={(e) => setEditPaymentAmount(e.target.value)}
+                  className="pl-9"
+                  placeholder="0.00"
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Reason for Edit *</Label>
+              <Input
+                value={editPaymentReason}
+                onChange={(e) => setEditPaymentReason(e.target.value)}
+                placeholder="e.g., Customer gave $100, not $50"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditPaymentDialog(false)}>Cancel</Button>
+            <Button onClick={handleEditPayment}>Save Changes</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Customer Confirmation */}
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Customer</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete "{customer.name}"? This action cannot be undone.
+              The customer will only be deleted if they have no pending orders or outstanding balance.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteCustomer}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleteCustomer.isPending ? 'Deleting...' : 'Delete'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AppLayout>
   );
 }

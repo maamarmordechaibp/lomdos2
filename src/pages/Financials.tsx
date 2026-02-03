@@ -13,9 +13,11 @@ import {
   PieChart,
   BarChart3,
   FileText,
-  Download
+  Download,
+  CreditCard,
+  User
 } from 'lucide-react';
-import { useFinancialSummary, useExpenses, useCreateExpense, useBookProfitability } from '@/hooks/useBalances';
+import { useFinancialSummary, useExpenses, useCreateExpense, useBookProfitability, useAllCustomerPayments } from '@/hooks/useBalances';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import {
@@ -36,9 +38,15 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Expense, ExpenseCategory } from '@/types/database';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { format } from 'date-fns';
+import { format, lastDayOfMonth } from 'date-fns';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
+
+// Helper function to get the last day of a month
+function getLastDayOfMonth(year: number, month: number): string {
+  const date = new Date(year, month, 0); // month is 1-indexed, so month=2 gives last day of Feb
+  return String(date.getDate()).padStart(2, '0');
+}
 
 const EXPENSE_CATEGORIES: { value: ExpenseCategory; label: string }[] = [
   { value: 'rent', label: 'Rent' },
@@ -60,12 +68,16 @@ export default function Financials() {
   const { data: summary, isLoading: summaryLoading } = useFinancialSummary(selectedYear, selectedMonth);
   const { data: expenses } = useExpenses({ 
     startDate: selectedMonth ? `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-01` : `${selectedYear}-01-01`,
-    endDate: selectedMonth ? `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-31` : `${selectedYear}-12-31`,
+    endDate: selectedMonth ? `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-${getLastDayOfMonth(selectedYear, selectedMonth)}` : `${selectedYear}-12-31`,
   });
   const { data: bookProfits } = useBookProfitability(
     selectedMonth ? `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-01` : `${selectedYear}-01-01`,
-    selectedMonth ? `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-31` : `${selectedYear}-12-31`
+    selectedMonth ? `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-${getLastDayOfMonth(selectedYear, selectedMonth)}` : `${selectedYear}-12-31`
   );
+  const { data: customerPayments } = useAllCustomerPayments({
+    startDate: selectedMonth ? `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-01` : `${selectedYear}-01-01`,
+    endDate: selectedMonth ? `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-${getLastDayOfMonth(selectedYear, selectedMonth)}` : `${selectedYear}-12-31`,
+  });
   const createExpense = useCreateExpense();
   
   const [expenseDialog, setExpenseDialog] = useState(false);
@@ -268,6 +280,12 @@ export default function Financials() {
 
         <Tabs defaultValue="expenses" className="w-full">
           <TabsList>
+            <TabsTrigger value="transactions">
+              Transactions
+              {(customerPayments?.length || 0) > 0 && (
+                <Badge variant="secondary" className="ml-2">{customerPayments?.length}</Badge>
+              )}
+            </TabsTrigger>
             <TabsTrigger value="expenses">
               Expenses
               {(expenses?.length || 0) > 0 && (
@@ -281,6 +299,60 @@ export default function Financials() {
               By Book
             </TabsTrigger>
           </TabsList>
+
+          <TabsContent value="transactions" className="mt-4">
+            <Card className="shadow-card">
+              <CardHeader>
+                <CardTitle className="font-display flex items-center gap-2">
+                  <CreditCard className="w-5 h-5" />
+                  Customer Payments
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {customerPayments && customerPayments.length > 0 ? (
+                  <div className="space-y-2">
+                    {customerPayments.map((payment) => (
+                      <div 
+                        key={payment.id}
+                        className="flex items-center justify-between p-3 rounded-lg bg-secondary/30"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-lg bg-green-500/10 flex items-center justify-center">
+                            <User className="w-5 h-5 text-green-600" />
+                          </div>
+                          <div>
+                            <p className="font-medium">
+                              {(payment.customer as any)?.name || 'Unknown Customer'}
+                            </p>
+                            <p className="text-sm text-muted-foreground">
+                              {format(new Date(payment.created_at), 'MMM d, yyyy h:mm a')}
+                              <Badge variant="outline" className="ml-2 capitalize">{payment.payment_method}</Badge>
+                              {payment.transaction_id && (
+                                <span className="ml-2 text-xs text-muted-foreground">#{payment.transaction_id}</span>
+                              )}
+                            </p>
+                          </div>
+                        </div>
+                        <p className="font-bold text-green-600">+${payment.amount.toFixed(2)}</p>
+                      </div>
+                    ))}
+                    <div className="pt-4 border-t mt-4">
+                      <div className="flex justify-between items-center">
+                        <p className="font-medium text-muted-foreground">Total Received</p>
+                        <p className="text-xl font-bold text-green-600">
+                          ${customerPayments.reduce((sum, p) => sum + p.amount, 0).toFixed(2)}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground">
+                    No customer payments for this period
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
 
           <TabsContent value="expenses" className="mt-4">
             <Card className="shadow-card">

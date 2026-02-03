@@ -6,6 +6,16 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// Helper function to escape XML special characters
+function escapeXml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
 /**
  * Phone Payment Handler
  * 
@@ -46,6 +56,7 @@ serve(async (req) => {
     if (contentType.includes("application/x-www-form-urlencoded")) {
       const formData = await req.formData();
       digitsPressed = formData.get("Digits")?.toString() || "";
+      console.log(`Digits received: ${digitsPressed}`);
     }
 
     let twiml: string;
@@ -116,7 +127,7 @@ serve(async (req) => {
 <Response>
   <Say voice="man" language="en-US">Hello ${escapeXml(actualCustomerName)}. Your current balance is ${balanceText}.</Say>
   <Pause length="1"/>
-  <Gather numDigits="1" action="${paymentOptionsUrl}" timeout="10">
+  <Gather input="dtmf" numDigits="1" action="${paymentOptionsUrl}" timeout="10">
     <Say voice="man" language="en-US">To pay the full amount, press 1.</Say>
     <Say voice="man" language="en-US">To enter a different amount, press 2.</Say>
     <Say voice="man" language="en-US">To return to the main menu, press 9.</Say>
@@ -142,7 +153,7 @@ serve(async (req) => {
           
           twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Gather numDigits="10" action="${customAmountUrl}" timeout="15" finishOnKey="#">
+  <Gather input="dtmf" numDigits="10" action="${customAmountUrl}" timeout="15" finishOnKey="#">
     <Say voice="man" language="en-US">Please enter the amount you wish to pay in cents, followed by the pound key.</Say>
     <Say voice="man" language="en-US">For example, for 25 dollars, enter 2 5 0 0, then press pound.</Say>
   </Gather>
@@ -217,8 +228,8 @@ serve(async (req) => {
         twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Say voice="man" language="en-US">You are about to pay ${amtText}.</Say>
-  <Gather numDigits="16" action="${cardNumberUrl}" timeout="30" finishOnKey="#">
-    <Say voice="man" language="en-US">Please enter your 16 digit card number, followed by the pound key.</Say>
+  <Gather input="dtmf" numDigits="19" action="${cardNumberUrl}" timeout="30" finishOnKey="#">
+    <Say voice="man" language="en-US">Please enter your card number, followed by the pound key.</Say>
   </Gather>
   <Say voice="man" language="en-US">We didn't receive your card number.</Say>
   <Redirect method="POST">${functionBaseUrl}/handle-incoming-call</Redirect>
@@ -228,12 +239,26 @@ serve(async (req) => {
       case "enter_expiry":
         // Save card number and ask for expiry
         const cardNumber = digitsPressed;
+        console.log(`Card number received: ${cardNumber ? cardNumber.length + ' digits' : 'EMPTY'}`);
+        
+        // Validate card number (should be 13-19 digits for most cards)
+        if (!cardNumber || cardNumber.length < 13) {
+          const retryCardUrl = `${functionBaseUrl}/phone-payment?caller_number=${encodeURIComponent(callerNumber)}&amp;customer_id=${customerId}&amp;customer_name=${encodeURIComponent(actualCustomerName)}&amp;forward_number=${encodeURIComponent(forwardNumber)}&amp;call_log_id=${callLogId}&amp;step=enter_card&amp;amount=${amount}`;
+          twiml = `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Say voice="man" language="en-US">The card number you entered appears to be invalid. Please try again.</Say>
+  <Redirect>${retryCardUrl}</Redirect>
+</Response>`;
+          break;
+        }
+        
         const expiryUrl = `${functionBaseUrl}/phone-payment?caller_number=${encodeURIComponent(callerNumber)}&amp;customer_id=${customerId}&amp;customer_name=${encodeURIComponent(actualCustomerName)}&amp;forward_number=${encodeURIComponent(forwardNumber)}&amp;call_log_id=${callLogId}&amp;step=enter_cvv&amp;amount=${amount}&amp;card=${cardNumber}`;
         
         twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Gather numDigits="4" action="${expiryUrl}" timeout="15" finishOnKey="#">
-    <Say voice="man" language="en-US">Please enter the expiration date as 4 digits. Month then year. For example, 0 3 2 6 for March 2026.</Say>
+  <Say voice="man" language="en-US">Card number received.</Say>
+  <Gather input="dtmf" numDigits="4" action="${expiryUrl}" timeout="15" finishOnKey="#">
+    <Say voice="man" language="en-US">Please enter the expiration date as 4 digits. Month then year. For example, 0 3 2 6 for March 2026. Then press pound.</Say>
   </Gather>
   <Say voice="man" language="en-US">We didn't receive your entry.</Say>
   <Redirect method="POST">${functionBaseUrl}/handle-incoming-call</Redirect>
@@ -244,11 +269,24 @@ serve(async (req) => {
         // Save expiry and ask for CVV
         const cardNum = url.searchParams.get("card") || "";
         const expiry = digitsPressed;
+        console.log(`Expiry received: ${expiry}, Card length: ${cardNum.length}`);
+        
+        if (!expiry || expiry.length < 4) {
+          const retryExpiryUrl = `${functionBaseUrl}/phone-payment?caller_number=${encodeURIComponent(callerNumber)}&amp;customer_id=${customerId}&amp;customer_name=${encodeURIComponent(actualCustomerName)}&amp;forward_number=${encodeURIComponent(forwardNumber)}&amp;call_log_id=${callLogId}&amp;step=enter_expiry&amp;amount=${amount}`;
+          twiml = `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Say voice="man" language="en-US">Invalid expiration date. Please try again.</Say>
+  <Redirect>${retryExpiryUrl}</Redirect>
+</Response>`;
+          break;
+        }
+        
         const cvvUrl = `${functionBaseUrl}/phone-payment?caller_number=${encodeURIComponent(callerNumber)}&amp;customer_id=${customerId}&amp;customer_name=${encodeURIComponent(actualCustomerName)}&amp;forward_number=${encodeURIComponent(forwardNumber)}&amp;call_log_id=${callLogId}&amp;step=enter_zip&amp;amount=${amount}&amp;card=${cardNum}&amp;expiry=${expiry}`;
         
         twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Gather numDigits="4" action="${cvvUrl}" timeout="15" finishOnKey="#">
+  <Say voice="man" language="en-US">Expiration date received.</Say>
+  <Gather input="dtmf" numDigits="4" action="${cvvUrl}" timeout="15" finishOnKey="#">
     <Say voice="man" language="en-US">Please enter the 3 or 4 digit security code from the back of your card, followed by pound.</Say>
   </Gather>
   <Say voice="man" language="en-US">We didn't receive your entry.</Say>
@@ -261,11 +299,24 @@ serve(async (req) => {
         const card = url.searchParams.get("card") || "";
         const exp = url.searchParams.get("expiry") || "";
         const cvv = digitsPressed;
+        console.log(`CVV received: ${cvv ? cvv.length + ' digits' : 'EMPTY'}, Card: ${card.length} digits, Expiry: ${exp}`);
+        
+        if (!cvv || cvv.length < 3 || cvv.length > 4) {
+          const retryCvvUrl = `${functionBaseUrl}/phone-payment?caller_number=${encodeURIComponent(callerNumber)}&amp;customer_id=${customerId}&amp;customer_name=${encodeURIComponent(actualCustomerName)}&amp;forward_number=${encodeURIComponent(forwardNumber)}&amp;call_log_id=${callLogId}&amp;step=enter_cvv&amp;amount=${amount}&amp;card=${card}&amp;expiry=${exp}`;
+          twiml = `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Say voice="man" language="en-US">Invalid security code. Please try again.</Say>
+  <Redirect>${retryCvvUrl}</Redirect>
+</Response>`;
+          break;
+        }
+        
         const processUrl = `${functionBaseUrl}/phone-payment?caller_number=${encodeURIComponent(callerNumber)}&amp;customer_id=${customerId}&amp;customer_name=${encodeURIComponent(actualCustomerName)}&amp;forward_number=${encodeURIComponent(forwardNumber)}&amp;call_log_id=${callLogId}&amp;step=process_payment&amp;amount=${amount}&amp;card=${card}&amp;expiry=${exp}&amp;cvv=${cvv}`;
         
         twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Gather numDigits="5" action="${processUrl}" timeout="15" finishOnKey="#">
+  <Say voice="man" language="en-US">Security code received.</Say>
+  <Gather input="dtmf" numDigits="5" action="${processUrl}" timeout="15" finishOnKey="#">
     <Say voice="man" language="en-US">Please enter your 5 digit billing zip code, followed by pound.</Say>
   </Gather>
   <Say voice="man" language="en-US">We didn't receive your entry.</Say>
@@ -282,6 +333,7 @@ serve(async (req) => {
         const paymentAmount = parseFloat(amount);
         
         console.log(`Processing payment: $${paymentAmount} for customer ${customerId}`);
+        console.log(`Card: ${cardFinal.length} digits, Expiry: ${expiryFinal}, CVV: ${cvvFinal.length} digits, ZIP: ${zipFinal}`);
         
         twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
@@ -305,9 +357,14 @@ serve(async (req) => {
   } catch (error) {
     console.error("Error in phone payment:", error);
     
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const baseUrl = supabaseUrl.replace('https://', '').split('.')[0];
+    const functionBaseUrl = `https://${baseUrl}.supabase.co/functions/v1`;
+    
     const errorTwiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Say voice="man" language="en-US">Sorry, there was an error processing your request. Please try again later.</Say>
+  <Redirect method="POST">${functionBaseUrl}/handle-incoming-call</Redirect>
 </Response>`;
     
     return new Response(errorTwiml, {
@@ -315,12 +372,3 @@ serve(async (req) => {
     });
   }
 });
-
-function escapeXml(text: string): string {
-  return text
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&apos;");
-}

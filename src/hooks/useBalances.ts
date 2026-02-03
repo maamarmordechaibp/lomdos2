@@ -404,7 +404,9 @@ export function useFinancialSummary(year?: number, month?: number) {
       
       if (year && month) {
         const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
-        const endDate = `${year}-${String(month).padStart(2, '0')}-31`;
+        // Use Date to get the correct last day of the month
+        const lastDay = new Date(year, month, 0).getDate();
+        const endDate = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
         expensesQuery = expensesQuery.gte('expense_date', startDate).lte('expense_date', endDate);
       } else if (year) {
         const startDate = `${year}-01-01`;

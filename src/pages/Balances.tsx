@@ -68,6 +68,7 @@ export default function Balances() {
   const [sendingReminders, setSendingReminders] = useState(false);
   const [customerPayments, setCustomerPayments] = useState<CustomerPayment[]>([]);
   const [customerOrders, setCustomerOrders] = useState<any[]>([]);
+  const [customerTransactions, setCustomerTransactions] = useState<any[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
   
   // Reminder filter state
@@ -228,6 +229,74 @@ export default function Balances() {
       
       if (ordersError) throw ordersError;
       setCustomerOrders(orders || []);
+      
+      // Build unified transaction log
+      const transactions: any[] = [];
+      
+      // Add order charges (when orders were created)
+      for (const order of (orders || [])) {
+        // Order created = charge
+        transactions.push({
+          id: `order-${order.id}`,
+          type: 'charge',
+          date: order.created_at,
+          amount: order.final_price || 0,
+          description: `Order: ${(order.book as any)?.title || 'Unknown Book'}`,
+          details: `Status: ${order.status}`,
+          orderId: order.id,
+          status: order.status,
+          paymentStatus: order.payment_status,
+        });
+        
+        // If order has amount_paid > 0, check if there's a matching payment record
+        // If not, add it as a deposit transaction
+        if (order.amount_paid > 0 && order.deposit_amount > 0) {
+          const hasMatchingPayment = (payments || []).some(
+            (p: any) => p.order_id === order.id && Math.abs(p.amount - order.deposit_amount) < 0.01
+          );
+          
+          if (!hasMatchingPayment) {
+            transactions.push({
+              id: `deposit-${order.id}`,
+              type: 'payment',
+              date: order.created_at,
+              amount: order.deposit_amount,
+              description: `Deposit for: ${(order.book as any)?.title || 'Unknown Book'}`,
+              details: 'Deposit at order creation',
+              orderId: order.id,
+              isDeposit: true,
+            });
+          }
+        }
+      }
+      
+      // Add recorded payments
+      for (const payment of (payments || [])) {
+        // Check if this payment is already represented as a deposit
+        const order = (orders || []).find((o: any) => o.id === payment.order_id);
+        const isAlreadyDeposit = order && order.deposit_amount > 0 && 
+          Math.abs(payment.amount - order.deposit_amount) < 0.01;
+        
+        if (!isAlreadyDeposit) {
+          transactions.push({
+            id: `payment-${payment.id}`,
+            type: 'payment',
+            date: payment.created_at,
+            amount: payment.amount,
+            description: order 
+              ? `Payment for: ${(order.book as any)?.title || 'Order'}`
+              : 'Payment',
+            details: payment.payment_method ? `Method: ${payment.payment_method}` : '',
+            paymentId: payment.id,
+            notes: payment.notes,
+          });
+        }
+      }
+      
+      // Sort by date, newest first
+      transactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      setCustomerTransactions(transactions);
+      
     } catch (error) {
       console.error('Error loading payment history:', error);
       toast.error('Failed to load payment history');
@@ -646,18 +715,84 @@ export default function Balances() {
 
       {/* Payment History Dialog */}
       <Dialog open={historyDialog.open} onOpenChange={(open) => !open && setHistoryDialog({ open: false, customer: null })}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl max-h-[80vh]">
           <DialogHeader>
             <DialogTitle>Account History - {historyDialog.customer?.name}</DialogTitle>
             <DialogDescription>
               Current balance: ${historyDialog.customer?.outstanding_balance?.toFixed(2) || '0.00'}
             </DialogDescription>
           </DialogHeader>
-          <Tabs defaultValue="payments" className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
+          <Tabs defaultValue="transactions" className="w-full">
+            <TabsList className="grid w-full grid-cols-3">
+              <TabsTrigger value="transactions">All ({customerTransactions.length})</TabsTrigger>
               <TabsTrigger value="payments">Payments ({customerPayments.length})</TabsTrigger>
               <TabsTrigger value="orders">Orders ({customerOrders.length})</TabsTrigger>
             </TabsList>
+            
+            <TabsContent value="transactions" className="space-y-2 max-h-96 overflow-y-auto mt-4">
+              {loadingHistory ? (
+                <div className="text-center py-8">Loading...</div>
+              ) : customerTransactions.length > 0 ? (
+                <>
+                  {customerTransactions.map((tx) => (
+                    <div 
+                      key={tx.id}
+                      className={`flex items-center justify-between p-3 rounded-lg ${
+                        tx.type === 'payment' ? 'bg-green-500/10' : 'bg-red-500/10'
+                      }`}
+                    >
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium">{tx.description}</p>
+                          {tx.isDeposit && (
+                            <Badge variant="outline" className="text-xs">Deposit</Badge>
+                          )}
+                        </div>
+                        <p className="text-sm text-muted-foreground">
+                          {format(new Date(tx.date), 'MMM d, yyyy h:mm a')}
+                          {tx.details && ` • ${tx.details}`}
+                        </p>
+                        {tx.notes && (
+                          <p className="text-xs text-muted-foreground mt-1">{tx.notes}</p>
+                        )}
+                      </div>
+                      <div className="text-right">
+                        <p className={`font-bold ${tx.type === 'payment' ? 'text-green-600' : 'text-red-600'}`}>
+                          {tx.type === 'payment' ? '+' : '-'}${tx.amount.toFixed(2)}
+                        </p>
+                        {tx.paymentStatus && (
+                          <Badge 
+                            variant={tx.paymentStatus === 'paid' ? 'default' : 'destructive'} 
+                            className="text-xs capitalize"
+                          >
+                            {tx.paymentStatus}
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                  <div className="pt-4 border-t mt-4">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Total Charges:</span>
+                      <span className="text-red-600 font-medium">
+                        ${customerTransactions.filter(t => t.type === 'charge').reduce((sum, t) => sum + t.amount, 0).toFixed(2)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Total Payments:</span>
+                      <span className="text-green-600 font-medium">
+                        ${customerTransactions.filter(t => t.type === 'payment').reduce((sum, t) => sum + t.amount, 0).toFixed(2)}
+                      </span>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  No transactions yet
+                </div>
+              )}
+            </TabsContent>
+            
             <TabsContent value="payments" className="space-y-4 max-h-72 overflow-y-auto mt-4">
               {loadingHistory ? (
                 <div className="text-center py-8">Loading...</div>
@@ -703,11 +838,21 @@ export default function Balances() {
                           {order.payment_status || 'unpaid'}
                         </Badge>
                       </p>
+                      {order.amount_paid > 0 && (
+                        <p className="text-xs text-green-600 mt-1">
+                          Paid: ${order.amount_paid.toFixed(2)} of ${(order.final_price || 0).toFixed(2)}
+                        </p>
+                      )}
                     </div>
                     <div className="text-right">
                       <p className={`font-medium ${order.payment_status === 'paid' ? 'text-muted-foreground' : 'text-red-600'}`}>
                         ${(order.final_price || 0).toFixed(2)}
                       </p>
+                      {order.balance_due > 0 && (
+                        <p className="text-xs text-red-500">
+                          Due: ${order.balance_due.toFixed(2)}
+                        </p>
+                      )}
                     </div>
                   </div>
                 ))

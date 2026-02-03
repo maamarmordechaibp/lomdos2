@@ -15,6 +15,7 @@ import {
   Send,
   Loader2,
   Filter,
+  Trash2,
 } from 'lucide-react';
 import { useCustomersWithBalance, useCreateCustomerPayment, useAllCustomerPayments } from '@/hooks/useBalances';
 import { useCustomers } from '@/hooks/useCustomers';
@@ -70,6 +71,7 @@ export default function Balances() {
   const [customerOrders, setCustomerOrders] = useState<any[]>([]);
   const [customerTransactions, setCustomerTransactions] = useState<any[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
+  const [deletingTransaction, setDeletingTransaction] = useState<string | null>(null);
   
   // Reminder filter state
   const [reminderFilter, setReminderFilter] = useState<'all' | '30' | '60' | '90'>('all');
@@ -302,6 +304,140 @@ export default function Balances() {
       toast.error('Failed to load payment history');
     } finally {
       setLoadingHistory(false);
+    }
+  };
+
+  const handleDeleteTransaction = async (tx: any) => {
+    if (!historyDialog.customer) return;
+    
+    setDeletingTransaction(tx.id);
+    
+    try {
+      if (tx.type === 'payment' && tx.paymentId) {
+        // Delete the payment record
+        const { error } = await supabase
+          .from('customer_payments')
+          .delete()
+          .eq('id', tx.paymentId);
+        
+        if (error) throw error;
+        
+        // Increase customer's outstanding balance (since we're removing a payment)
+        const { data: customer } = await supabase
+          .from('customers')
+          .select('outstanding_balance')
+          .eq('id', historyDialog.customer.id)
+          .single();
+        
+        const newBalance = (customer?.outstanding_balance || 0) + tx.amount;
+        await supabase
+          .from('customers')
+          .update({ outstanding_balance: newBalance })
+          .eq('id', historyDialog.customer.id);
+        
+        toast.success(`Payment of $${tx.amount.toFixed(2)} deleted. Balance updated.`);
+        
+        // Refresh data
+        queryClient.invalidateQueries({ queryKey: ['customers-with-balance'] });
+        queryClient.invalidateQueries({ queryKey: ['customers'] });
+        
+        // Reload the history dialog
+        await handleOpenHistory({ ...historyDialog.customer, outstanding_balance: newBalance });
+        
+      } else if (tx.type === 'charge' && tx.orderId) {
+        // Delete the order - this will also affect the balance
+        const order = customerOrders.find(o => o.id === tx.orderId);
+        if (!order) {
+          toast.error('Order not found');
+          return;
+        }
+        
+        // Calculate balance adjustment
+        const balanceToRemove = order.balance_due || (order.final_price - (order.amount_paid || 0));
+        
+        const { error } = await supabase
+          .from('customer_orders')
+          .delete()
+          .eq('id', tx.orderId);
+        
+        if (error) throw error;
+        
+        // Decrease customer's outstanding balance (since we're removing a charge)
+        if (balanceToRemove > 0) {
+          const { data: customer } = await supabase
+            .from('customers')
+            .select('outstanding_balance')
+            .eq('id', historyDialog.customer.id)
+            .single();
+          
+          const newBalance = Math.max(0, (customer?.outstanding_balance || 0) - balanceToRemove);
+          await supabase
+            .from('customers')
+            .update({ outstanding_balance: newBalance })
+            .eq('id', historyDialog.customer.id);
+          
+          toast.success(`Order deleted. $${balanceToRemove.toFixed(2)} removed from balance.`);
+          
+          // Refresh data
+          queryClient.invalidateQueries({ queryKey: ['customers-with-balance'] });
+          queryClient.invalidateQueries({ queryKey: ['customers'] });
+          queryClient.invalidateQueries({ queryKey: ['orders'] });
+          
+          // Reload the history dialog
+          await handleOpenHistory({ ...historyDialog.customer, outstanding_balance: newBalance });
+        } else {
+          toast.success('Order deleted.');
+          queryClient.invalidateQueries({ queryKey: ['orders'] });
+          await handleOpenHistory(historyDialog.customer);
+        }
+      } else if (tx.isDeposit && tx.orderId) {
+        // This is a deposit recorded in the order, not a separate payment
+        // Update the order to remove the deposit
+        const order = customerOrders.find(o => o.id === tx.orderId);
+        if (!order) {
+          toast.error('Order not found');
+          return;
+        }
+        
+        const newAmountPaid = Math.max(0, (order.amount_paid || 0) - tx.amount);
+        const newBalanceDue = (order.final_price || 0) - newAmountPaid;
+        
+        await supabase
+          .from('customer_orders')
+          .update({
+            amount_paid: newAmountPaid,
+            deposit_amount: 0,
+            balance_due: newBalanceDue,
+            payment_status: newAmountPaid > 0 ? 'partial' : 'unpaid',
+          })
+          .eq('id', tx.orderId);
+        
+        // Update customer balance
+        const { data: customer } = await supabase
+          .from('customers')
+          .select('outstanding_balance')
+          .eq('id', historyDialog.customer.id)
+          .single();
+        
+        const newBalance = (customer?.outstanding_balance || 0) + tx.amount;
+        await supabase
+          .from('customers')
+          .update({ outstanding_balance: newBalance })
+          .eq('id', historyDialog.customer.id);
+        
+        toast.success(`Deposit of $${tx.amount.toFixed(2)} removed. Balance updated.`);
+        
+        queryClient.invalidateQueries({ queryKey: ['customers-with-balance'] });
+        queryClient.invalidateQueries({ queryKey: ['customers'] });
+        queryClient.invalidateQueries({ queryKey: ['orders'] });
+        
+        await handleOpenHistory({ ...historyDialog.customer, outstanding_balance: newBalance });
+      }
+    } catch (error: any) {
+      console.error('Error deleting transaction:', error);
+      toast.error('Failed to delete: ' + (error.message || 'Unknown error'));
+    } finally {
+      setDeletingTransaction(null);
     }
   };
 
@@ -756,18 +892,33 @@ export default function Balances() {
                           <p className="text-xs text-muted-foreground mt-1">{tx.notes}</p>
                         )}
                       </div>
-                      <div className="text-right">
-                        <p className={`font-bold ${tx.type === 'payment' ? 'text-green-600' : 'text-red-600'}`}>
-                          {tx.type === 'payment' ? '+' : '-'}${tx.amount.toFixed(2)}
-                        </p>
-                        {tx.paymentStatus && (
-                          <Badge 
-                            variant={tx.paymentStatus === 'paid' ? 'default' : 'destructive'} 
-                            className="text-xs capitalize"
-                          >
-                            {tx.paymentStatus}
-                          </Badge>
-                        )}
+                      <div className="flex items-center gap-3">
+                        <div className="text-right">
+                          <p className={`font-bold ${tx.type === 'payment' ? 'text-green-600' : 'text-red-600'}`}>
+                            {tx.type === 'payment' ? '+' : '-'}${tx.amount.toFixed(2)}
+                          </p>
+                          {tx.paymentStatus && (
+                            <Badge 
+                              variant={tx.paymentStatus === 'paid' ? 'default' : 'destructive'} 
+                              className="text-xs capitalize"
+                            >
+                              {tx.paymentStatus}
+                            </Badge>
+                          )}
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-muted-foreground hover:text-red-600"
+                          onClick={() => handleDeleteTransaction(tx)}
+                          disabled={deletingTransaction === tx.id}
+                        >
+                          {deletingTransaction === tx.id ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Trash2 className="h-4 w-4" />
+                          )}
+                        </Button>
                       </div>
                     </div>
                   ))}

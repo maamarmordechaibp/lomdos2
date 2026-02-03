@@ -71,29 +71,49 @@ serve(async (req) => {
     }
 
     // Check for pending messages for this caller
-    // Format the number to check multiple formats
-    let formattedCallerNumber = callerNumber.replace(/\D/g, '');
-    if (!formattedCallerNumber.startsWith('1') && formattedCallerNumber.length === 10) {
-      formattedCallerNumber = '1' + formattedCallerNumber;
-    }
-    if (!formattedCallerNumber.startsWith('+')) {
-      formattedCallerNumber = '+' + formattedCallerNumber;
-    }
-
-    const { data: pendingMessages } = await supabase
+    // Build multiple phone number formats to check
+    const digitsOnly = callerNumber.replace(/\D/g, '');
+    const last10Digits = digitsOnly.slice(-10); // Get last 10 digits regardless of country code
+    
+    // Create all possible formats
+    const phoneFormats = [
+      callerNumber,                      // Original: +18453762437
+      `+${digitsOnly}`,                  // +18453762437
+      `+1${last10Digits}`,               // +18453762437
+      digitsOnly,                        // 18453762437
+      last10Digits,                      // 8453762437
+    ];
+    
+    console.log(`Looking for pending messages with phone formats: ${phoneFormats.join(', ')}`);
+    
+    // First, let's see all pending messages to debug
+    const { data: allPending } = await supabase
       .from("pending_messages")
-      .select("id, message, notification_type, created_at")
-      .or(`phone_number.eq.${formattedCallerNumber},phone_number.eq.+1${normalizedNumber},phone_number.ilike.%${normalizedNumber}%`)
+      .select("id, phone_number, is_played, created_at")
       .eq("is_played", false)
       .order("created_at", { ascending: false })
+      .limit(10);
+    
+    console.log(`All unplayed pending messages: ${JSON.stringify(allPending)}`);
+
+    const { data: pendingMessages, error: pendingError } = await supabase
+      .from("pending_messages")
+      .select("id, message, notification_type, created_at, phone_number")
+      .eq("is_played", false)
+      .or(phoneFormats.map(p => `phone_number.ilike.%${last10Digits}%`).join(','))
+      .order("created_at", { ascending: false })
       .limit(1);
+
+    if (pendingError) {
+      console.error("Error querying pending messages:", pendingError);
+    }
 
     const hasPendingMessage = pendingMessages && pendingMessages.length > 0;
     const pendingMessage = hasPendingMessage ? pendingMessages[0] : null;
 
-    console.log(`Pending messages for caller: ${hasPendingMessage ? 'YES' : 'NO'}`);
+    console.log(`Pending messages for caller ${callerNumber}: ${hasPendingMessage ? 'YES' : 'NO'}`);
     if (pendingMessage) {
-      console.log(`Pending message ID: ${pendingMessage.id}, Type: ${pendingMessage.notification_type}`);
+      console.log(`Found pending message - ID: ${pendingMessage.id}, Phone: ${pendingMessage.phone_number}, Type: ${pendingMessage.notification_type}`);
     }
 
     // Get store settings for the forwarding number
@@ -153,34 +173,37 @@ serve(async (req) => {
     const whisperUrl = `${functionBaseUrl}/call-whisper?customer_name=${encodeURIComponent(customerName)}`;
 
     // Generate TwiML response
-    // If there's a pending message, offer to play it first before connecting
+    // Always show the main menu with 3 options
     let twiml: string;
     
-    if (pendingMessage) {
-      // Build URL for playing the message and then connecting
-      const playMessageUrl = `${functionBaseUrl}/play-pending-message?pending_message_id=${pendingMessage.id}&call_log_id=${callLog?.id}&forward_number=${encodeURIComponent(formattedForwardNumber)}&customer_name=${encodeURIComponent(customerName)}&caller_number=${encodeURIComponent(callerNumber)}`;
-      const skipMessageUrl = `${functionBaseUrl}/skip-pending-message?call_log_id=${callLog?.id}&forward_number=${encodeURIComponent(formattedForwardNumber)}&customer_name=${encodeURIComponent(customerName)}&caller_number=${encodeURIComponent(callerNumber)}`;
-      
-      twiml = `<?xml version="1.0" encoding="UTF-8"?>
+    // Build menu URLs with proper XML escaping (& as &amp;)
+    const playMessageUrl = pendingMessage 
+      ? `${functionBaseUrl}/play-pending-message?pending_message_id=${pendingMessage.id}&amp;call_log_id=${callLog?.id}&amp;forward_number=${encodeURIComponent(formattedForwardNumber)}&amp;customer_name=${encodeURIComponent(customerName)}&amp;caller_number=${encodeURIComponent(callerNumber)}`
+      : `${functionBaseUrl}/no-pending-message?call_log_id=${callLog?.id}&amp;forward_number=${encodeURIComponent(formattedForwardNumber)}&amp;customer_name=${encodeURIComponent(customerName)}&amp;caller_number=${encodeURIComponent(callerNumber)}`;
+    
+    const connectUrl = `${functionBaseUrl}/skip-pending-message?call_log_id=${callLog?.id}&amp;forward_number=${encodeURIComponent(formattedForwardNumber)}&amp;customer_name=${encodeURIComponent(customerName)}&amp;caller_number=${encodeURIComponent(callerNumber)}`;
+    
+    const paymentUrl = `${functionBaseUrl}/phone-payment?caller_number=${encodeURIComponent(callerNumber)}&amp;customer_id=${customerId || ''}&amp;customer_name=${encodeURIComponent(customerName)}`;
+    
+    // Build main menu action URL
+    const menuActionUrl = `${functionBaseUrl}/phone-menu-handler?pending_message_id=${pendingMessage?.id || ''}&amp;call_log_id=${callLog?.id}&amp;forward_number=${encodeURIComponent(formattedForwardNumber)}&amp;customer_name=${encodeURIComponent(customerName)}&amp;caller_number=${encodeURIComponent(callerNumber)}&amp;customer_id=${customerId || ''}`;
+    
+    // Message option text
+    const messageOption = pendingMessage 
+      ? "Press 1 to listen to your message."
+      : "Press 1 for any previous messages.";
+    
+    twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Say voice="man" language="en-US">Thank you for calling ${escapeXml(storeName)}.</Say>
+  <Say voice="man" language="en-US">Welcome to ${escapeXml(storeName)}.</Say>
   <Pause length="1"/>
-  <Say voice="man" language="en-US">We have a message for you.</Say>
-  <Gather numDigits="1" action="${playMessageUrl}" timeout="5">
-    <Say voice="man" language="en-US">Press 1 to hear your message, or press 2 to speak with a representative.</Say>
+  <Gather numDigits="1" action="${menuActionUrl}" timeout="10">
+    <Say voice="man" language="en-US">${messageOption}</Say>
+    <Say voice="man" language="en-US">Press 2 to speak with a representative.</Say>
+    <Say voice="man" language="en-US">Press 3 to pay for your books.</Say>
   </Gather>
-  <Redirect>${skipMessageUrl}</Redirect>
+  <Say voice="man" language="en-US">We didn't receive your selection. Goodbye.</Say>
 </Response>`;
-    } else {
-      // No pending message, proceed directly to forwarding the call
-      twiml = `<?xml version="1.0" encoding="UTF-8"?>
-<Response>
-  <Dial callerId="${escapeXml(callerNumber)}" timeout="30" action="${statusCallbackUrl}">
-    <Number url="${whisperUrl}">${formattedForwardNumber}</Number>
-  </Dial>
-  <Say voice="man" language="en-US">The call was not answered. Goodbye.</Say>
-</Response>`;
-    }
 
     console.log("Returning TwiML:", twiml);
 

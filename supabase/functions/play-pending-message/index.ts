@@ -76,9 +76,10 @@ serve(async (req) => {
     console.log("Playing message to caller:", pendingMessage.message);
 
     // Build URL for after message is played
+    // Note: & must be escaped as &amp; in XML
     const baseUrl = supabaseUrl.replace('https://', '').split('.')[0];
     const functionBaseUrl = `https://${baseUrl}.supabase.co/functions/v1`;
-    const afterMessageUrl = `${functionBaseUrl}/skip-pending-message?call_log_id=${callLogId}&forward_number=${encodeURIComponent(forwardNumber || '')}&customer_name=${encodeURIComponent(customerName)}&caller_number=${encodeURIComponent(callerNumber)}`;
+    const afterMessageUrl = `${functionBaseUrl}/skip-pending-message?call_log_id=${callLogId}&amp;forward_number=${encodeURIComponent(forwardNumber || '')}&amp;customer_name=${encodeURIComponent(customerName)}&amp;caller_number=${encodeURIComponent(callerNumber)}`;
 
     // Play the message and then offer to connect
     const twiml = `<?xml version="1.0" encoding="UTF-8"?>
@@ -113,7 +114,8 @@ serve(async (req) => {
 function redirectToCall(supabaseUrl: string, callLogId: string | null, forwardNumber: string | null, customerName: string, callerNumber: string): Response {
   const baseUrl = supabaseUrl.replace('https://', '').split('.')[0];
   const functionBaseUrl = `https://${baseUrl}.supabase.co/functions/v1`;
-  const skipUrl = `${functionBaseUrl}/skip-pending-message?call_log_id=${callLogId}&forward_number=${encodeURIComponent(forwardNumber || '')}&customer_name=${encodeURIComponent(customerName)}&caller_number=${encodeURIComponent(callerNumber)}`;
+  // Note: & must be escaped as &amp; in XML
+  const skipUrl = `${functionBaseUrl}/skip-pending-message?call_log_id=${callLogId}&amp;forward_number=${encodeURIComponent(forwardNumber || '')}&amp;customer_name=${encodeURIComponent(customerName)}&amp;caller_number=${encodeURIComponent(callerNumber)}`;
 
   const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>

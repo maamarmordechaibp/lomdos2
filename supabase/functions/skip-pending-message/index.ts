@@ -46,6 +46,7 @@ serve(async (req) => {
     }
 
     // Build callback URLs
+    // Note: & must be escaped as &amp; in XML attributes
     const baseUrl = supabaseUrl.replace('https://', '').split('.')[0];
     const functionBaseUrl = `https://${baseUrl}.supabase.co/functions/v1`;
     const statusCallbackUrl = `${functionBaseUrl}/call-status?call_log_id=${callLogId}`;

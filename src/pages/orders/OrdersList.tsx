@@ -110,6 +110,25 @@ export default function OrdersList() {
   const handleDeleteOrder = async (orderId: string) => {
     if (!confirm('Are you sure you want to delete this order?')) return;
     
+    // First, get the order details to update customer balance
+    const { data: order, error: fetchError } = await supabase
+      .from('customer_orders')
+      .select('*, customer:customers(*)')
+      .eq('id', orderId)
+      .single();
+    
+    if (fetchError) {
+      toast.error('Failed to fetch order: ' + fetchError.message);
+      return;
+    }
+    
+    // Delete associated payments first
+    await supabase
+      .from('customer_payments')
+      .delete()
+      .eq('order_id', orderId);
+    
+    // Delete the order
     const { error } = await supabase
       .from('customer_orders')
       .delete()
@@ -118,8 +137,21 @@ export default function OrdersList() {
     if (error) {
       toast.error('Failed to delete order: ' + error.message);
     } else {
+      // Update customer's outstanding balance if the order had a balance due
+      if (order?.customer_id && order?.balance_due && order.balance_due > 0) {
+        const currentBalance = order.customer?.outstanding_balance || 0;
+        const newBalance = Math.max(0, currentBalance - order.balance_due);
+        
+        await supabase
+          .from('customers')
+          .update({ outstanding_balance: newBalance })
+          .eq('id', order.customer_id);
+      }
+      
       toast.success('Order deleted');
       queryClient.invalidateQueries({ queryKey: ['customer-orders'] });
+      queryClient.invalidateQueries({ queryKey: ['customers'] });
+      queryClient.invalidateQueries({ queryKey: ['customers-with-balance'] });
     }
   };
 

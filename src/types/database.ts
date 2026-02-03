@@ -98,6 +98,10 @@ export interface CustomerOrder {
   is_bill: boolean;
   discount_type: 'percentage' | 'fixed' | null;
   discount_value: number | null;
+  // Binding fee
+  wants_binding: boolean;
+  binding_fee: number;
+  binding_fee_applied: number;
   discount_reason: string | null;
   original_price: number | null;
   picked_up_at: string | null;

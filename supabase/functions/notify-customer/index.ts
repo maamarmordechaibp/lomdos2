@@ -187,6 +187,27 @@ serve(async (req) => {
       if (!formattedPhone) {
         throw new Error("Customer does not have a valid phone number");
       }
+      
+      // Pre-create pending message record (will be deleted if call is answered)
+      const { data: pendingMessage } = await supabase
+        .from("pending_messages")
+        .insert({
+          customer_id: customer_id,
+          phone_number: formattedPhone,
+          message: message,
+          notification_type: notification_type,
+          customer_order_id: customer_order_id || null,
+        })
+        .select()
+        .single();
+      
+      // Build status callback URL to handle no-answer scenarios
+      const baseUrl = supabaseUrl.replace('https://', '').split('.')[0];
+      const functionBaseUrl = `https://${baseUrl}.supabase.co/functions/v1`;
+      const statusCallbackUrl = pendingMessage 
+        ? `${functionBaseUrl}/notification-status?pending_message_id=${pendingMessage.id}`
+        : undefined;
+      
       // Make phone call using SignalWire
       console.log(`Making phone call to ${formattedPhone}`);
       result = await makePhoneCall({
@@ -196,7 +217,17 @@ serve(async (req) => {
         fromNumber: signalwireFromNumber!,
         toNumber: formattedPhone,
         message,
+        statusCallbackUrl,
       });
+      
+      // Update pending message with call SID for tracking
+      if (pendingMessage && result?.sid) {
+        await supabase
+          .from("pending_messages")
+          .update({ call_sid: result.sid })
+          .eq("id", pendingMessage.id);
+      }
+      
       console.log("Phone call result:", JSON.stringify(result));
     } else if (customer.notification_preference === "sms") {
       if (!formattedPhone) {
@@ -278,6 +309,7 @@ async function makePhoneCall({
   fromNumber,
   toNumber,
   message,
+  statusCallbackUrl,
 }: {
   signalwireSpaceUrl: string;
   signalwireProjectId: string;
@@ -285,6 +317,7 @@ async function makePhoneCall({
   fromNumber: string;
   toNumber: string;
   message: string;
+  statusCallbackUrl?: string;
 }) {
   // Create TwiML for text-to-speech with male voice (man)
   const twiml = `<?xml version="1.0" encoding="UTF-8"?>
@@ -298,11 +331,19 @@ async function makePhoneCall({
   
   const auth = btoa(`${signalwireProjectId}:${signalwireApiToken}`);
   
-  const body = new URLSearchParams({
+  const bodyParams: Record<string, string> = {
     From: fromNumber,
     To: toNumber,
     Twiml: twiml,
-  });
+  };
+  
+  // Add status callback if provided (for tracking no-answer to save pending message)
+  if (statusCallbackUrl) {
+    bodyParams.StatusCallback = statusCallbackUrl;
+    bodyParams.StatusCallbackEvent = 'completed';
+  }
+  
+  const body = new URLSearchParams(bodyParams);
 
   const response = await fetch(url, {
     method: "POST",

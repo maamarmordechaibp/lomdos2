@@ -56,6 +56,7 @@ interface CartItem {
   book: Book;
   quantity: number;
   price: number;
+  wantsBinding: boolean;
 }
 
 export default function NewOrder() {
@@ -100,8 +101,12 @@ export default function NewOrder() {
   const [cardCvv, setCardCvv] = useState('');
   const [cardZip, setCardZip] = useState('');
   
+  // Binding fee constant
+  const BINDING_FEE = 5.00;
+  
   // Calculations
   const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+  const totalBindingFees = cart.reduce((sum, item) => sum + (item.wantsBinding ? BINDING_FEE * item.quantity : 0), 0);
   
   // Calculate customer discount (percentage or fixed)
   let customerDiscountAmount = 0;
@@ -128,7 +133,7 @@ export default function NewOrder() {
   }
   
   const totalDiscount = customerDiscountAmount + promoDiscountAmount;
-  const finalTotal = Math.max(0, subtotal - totalDiscount);
+  const finalTotal = Math.max(0, subtotal - totalDiscount + totalBindingFees);
   
   const amount = parseFloat(paymentAmount) || 0;
   const change = amount > finalTotal ? amount - finalTotal : 0;
@@ -221,11 +226,19 @@ export default function NewOrder() {
       if (price === 0) {
         setEditingItemId(book.id);
         setEditPrice('');
-        setCart([...cart, { book, quantity: 1, price: 0 }]);
+        setCart([...cart, { book, quantity: 1, price: 0, wantsBinding: false }]);
       } else {
-        setCart([...cart, { book, quantity: 1, price }]);
+        setCart([...cart, { book, quantity: 1, price, wantsBinding: false }]);
       }
     }
+  };
+  
+  const toggleBinding = (bookId: string) => {
+    setCart(cart.map(item => 
+      item.book.id === bookId 
+        ? { ...item, wantsBinding: !item.wantsBinding }
+        : item
+    ));
   };
   
   const updateQuantity = (bookId: string, delta: number) => {
@@ -326,7 +339,8 @@ export default function NewOrder() {
         const hasStock = item.book.quantity_in_stock >= item.quantity;
         const itemSubtotal = item.price * item.quantity;
         const itemDiscount = itemSubtotal * discountRatio;
-        const itemTotal = itemSubtotal - itemDiscount;
+        const itemBindingFee = item.wantsBinding ? BINDING_FEE * item.quantity : 0;
+        const itemTotal = itemSubtotal - itemDiscount + itemBindingFee;
         const itemBalanceDue = isFullPayment ? 0 : itemTotal - Math.min(amount, itemTotal);
         totalBalanceDue += itemBalanceDue;
         
@@ -349,9 +363,12 @@ export default function NewOrder() {
           balance_due: itemBalanceDue,
           total_amount: itemTotal,
           picked_up_at: hasStock ? new Date().toISOString() : null,
+          wants_binding: item.wantsBinding,
+          binding_fee: BINDING_FEE,
+          binding_fee_applied: itemBindingFee,
           notes: hasStock 
-            ? `[POS - From Stock]${totalDiscount > 0 ? ` | Discount: $${itemDiscount.toFixed(2)}` : ''}` 
-            : `[POS - Will Order]${totalDiscount > 0 ? ` | Discount: $${itemDiscount.toFixed(2)}` : ''}`,
+            ? `[POS - From Stock]${totalDiscount > 0 ? ` | Discount: $${itemDiscount.toFixed(2)}` : ''}${item.wantsBinding ? ' | Binding requested' : ''}` 
+            : `[POS - Will Order]${totalDiscount > 0 ? ` | Discount: $${itemDiscount.toFixed(2)}` : ''}${item.wantsBinding ? ' | Binding requested' : ''}`,
         });
         
         // Record payment
@@ -839,8 +856,28 @@ export default function NewOrder() {
                         </button>
                       )}
                       <span className="font-bold text-sm">
-                        ${(item.price * item.quantity).toFixed(2)}
+                        ${(item.price * item.quantity + (item.wantsBinding ? BINDING_FEE * item.quantity : 0)).toFixed(2)}
                       </span>
+                    </div>
+                    
+                    {/* Binding option */}
+                    <div className="flex items-center justify-between mt-2 pt-2 border-t border-border/50">
+                      <label className="flex items-center gap-2 cursor-pointer text-xs">
+                        <input 
+                          type="checkbox" 
+                          checked={item.wantsBinding}
+                          onChange={() => toggleBinding(item.book.id)}
+                          className="rounded border-gray-300"
+                        />
+                        <span className={item.wantsBinding ? 'text-primary font-medium' : 'text-muted-foreground'}>
+                          Bind (+${BINDING_FEE.toFixed(2)}/book)
+                        </span>
+                      </label>
+                      {item.wantsBinding && (
+                        <span className="text-xs text-primary font-medium">
+                          +${(BINDING_FEE * item.quantity).toFixed(2)}
+                        </span>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -896,6 +933,16 @@ export default function NewOrder() {
                       <X className="w-3 h-3" />
                     </Button>
                   </div>
+                </div>
+              )}
+              
+              {/* Binding Fees */}
+              {totalBindingFees > 0 && (
+                <div className="flex justify-between items-center text-sm text-blue-600 dark:text-blue-400">
+                  <span className="flex items-center gap-1">
+                    📚 Binding Fee:
+                  </span>
+                  <span>+${totalBindingFees.toFixed(2)}</span>
                 </div>
               )}
               

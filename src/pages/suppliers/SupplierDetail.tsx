@@ -92,6 +92,9 @@ export default function SupplierDetail() {
   const [uploading, setUploading] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [showBulkAddDialog, setShowBulkAddDialog] = useState(false);
+  const [bulkBooksText, setBulkBooksText] = useState('');
+  const [isAddingBulkBooks, setIsAddingBulkBooks] = useState(false);
   const [editForm, setEditForm] = useState({
     name: '',
     email: '',
@@ -245,6 +248,96 @@ export default function SupplierDetail() {
       toast.error('Upload failed: ' + error.message);
     } finally {
       setUploading(false);
+    }
+  };
+
+  // Handle bulk add books
+  const handleBulkAddBooks = async () => {
+    if (!bulkBooksText.trim() || !id) return;
+    
+    setIsAddingBulkBooks(true);
+    try {
+      // Split by newlines and filter empty lines
+      const bookTitles = bulkBooksText
+        .split('\n')
+        .map(line => line.trim())
+        .filter(line => line.length > 0);
+      
+      if (bookTitles.length === 0) {
+        toast.error('Please enter at least one book title');
+        return;
+      }
+      
+      let addedCount = 0;
+      let existingCount = 0;
+      
+      for (const title of bookTitles) {
+        // Check if book already exists
+        const { data: existingBook } = await supabase
+          .from('books')
+          .select('id')
+          .ilike('title', title)
+          .single();
+        
+        if (existingBook) {
+          // Book exists, just update the supplier
+          await supabase
+            .from('books')
+            .update({ current_supplier_id: id })
+            .eq('id', existingBook.id);
+          
+          // Add to supplier history if not already there
+          const { data: existingHistory } = await supabase
+            .from('book_supplier_history')
+            .select('id')
+            .eq('book_id', existingBook.id)
+            .eq('supplier_id', id)
+            .single();
+          
+          if (!existingHistory) {
+            await supabase.from('book_supplier_history').insert({
+              book_id: existingBook.id,
+              supplier_id: id,
+              is_active: true,
+            });
+          }
+          existingCount++;
+        } else {
+          // Create new book with this supplier
+          const { data: newBook, error } = await supabase
+            .from('books')
+            .insert({
+              title: title,
+              current_supplier_id: id,
+              quantity_in_stock: 0,
+              low_stock_threshold: 5,
+              reorder_quantity: 10,
+            })
+            .select()
+            .single();
+          
+          if (!error && newBook) {
+            // Add to supplier history
+            await supabase.from('book_supplier_history').insert({
+              book_id: newBook.id,
+              supplier_id: id,
+              is_active: true,
+            });
+            addedCount++;
+          }
+        }
+      }
+      
+      toast.success(`Added ${addedCount} new books, updated ${existingCount} existing books`);
+      setBulkBooksText('');
+      setShowBulkAddDialog(false);
+      
+      // Refresh the supplier books list
+      window.location.reload();
+    } catch (error: any) {
+      toast.error('Failed to add books: ' + error.message);
+    } finally {
+      setIsAddingBulkBooks(false);
     }
   };
 
@@ -489,11 +582,15 @@ export default function SupplierDetail() {
 
         {/* Books from this supplier */}
         <Card className="shadow-card">
-          <CardHeader>
+          <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="font-display flex items-center gap-2">
               <Book className="w-5 h-5" />
               Books from this Supplier ({supplierBooks?.length || 0})
             </CardTitle>
+            <Button onClick={() => setShowBulkAddDialog(true)}>
+              <Upload className="w-4 h-4 mr-2" />
+              Add Books
+            </Button>
           </CardHeader>
           <CardContent>
             {supplierBooks && supplierBooks.length > 0 ? (
@@ -826,6 +923,45 @@ export default function SupplierDetail() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Bulk Add Books Dialog */}
+      <Dialog open={showBulkAddDialog} onOpenChange={setShowBulkAddDialog}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Upload className="w-5 h-5" />
+              Add Multiple Books to {supplier.name}
+            </DialogTitle>
+            <DialogDescription>
+              Enter book titles, one per line. Each title will be saved as a separate book assigned to this supplier.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <Textarea
+              placeholder={`Enter book titles, one per line:\nדי הימל אין די ערד\nדי ערד אין די הימל\nBook Title 3`}
+              value={bulkBooksText}
+              onChange={(e) => setBulkBooksText(e.target.value)}
+              rows={10}
+              className="font-mono"
+              dir="auto"
+            />
+            <p className="text-sm text-muted-foreground">
+              {bulkBooksText.split('\n').filter(l => l.trim()).length} books to add
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowBulkAddDialog(false)}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleBulkAddBooks} 
+              disabled={isAddingBulkBooks || !bulkBooksText.trim()}
+            >
+              {isAddingBulkBooks ? 'Adding...' : 'Add Books'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AppLayout>
   );
 }

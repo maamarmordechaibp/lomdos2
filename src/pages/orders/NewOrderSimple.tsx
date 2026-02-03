@@ -42,7 +42,10 @@ interface CartItem {
   book: Book;
   quantity: number;
   price: number;
+  wantsBinding: boolean;
 }
+
+const BINDING_FEE = 5.00;
 
 export default function NewOrder() {
   const navigate = useNavigate();
@@ -97,8 +100,14 @@ export default function NewOrder() {
       if (existing) {
         return prev.map(i => i.book.id === book.id ? { ...i, quantity: i.quantity + 1 } : i);
       }
-      return [...prev, { book, quantity: 1, price }];
+      return [...prev, { book, quantity: 1, price, wantsBinding: false }];
     });
+  };
+  
+  const toggleBinding = (bookId: string) => {
+    setCart(prev => prev.map(item => 
+      item.book.id === bookId ? { ...item, wantsBinding: !item.wantsBinding } : item
+    ));
   };
   
   const updateQuantity = (bookId: string, delta: number) => {
@@ -162,6 +171,8 @@ export default function NewOrder() {
   
   // Calculate totals
   const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+  const totalBindingFees = cart.reduce((sum, item) => sum + (item.wantsBinding ? BINDING_FEE * item.quantity : 0), 0);
+  const grandTotal = subtotal + totalBindingFees;
   const itemCount = cart.reduce((sum, item) => sum + item.quantity, 0);
 
   return (
@@ -370,8 +381,21 @@ export default function NewOrder() {
                         </Button>
                       </div>
                     </div>
-                    <div className="text-right mt-1">
-                      <span className="font-bold text-sm">${(item.price * item.quantity).toFixed(2)}</span>
+                    <div className="flex items-center justify-between mt-1 pt-1 border-t border-border/50">
+                      <label className="flex items-center gap-1.5 cursor-pointer text-xs">
+                        <input 
+                          type="checkbox" 
+                          checked={item.wantsBinding}
+                          onChange={() => toggleBinding(item.book.id)}
+                          className="rounded border-gray-300 w-3.5 h-3.5"
+                        />
+                        <span className={item.wantsBinding ? 'text-primary font-medium' : 'text-muted-foreground'}>
+                          Bind +${BINDING_FEE.toFixed(0)}
+                        </span>
+                      </label>
+                      <span className="font-bold text-sm">
+                        ${(item.price * item.quantity + (item.wantsBinding ? BINDING_FEE * item.quantity : 0)).toFixed(2)}
+                      </span>
                     </div>
                   </div>
                 ))}
@@ -388,9 +412,19 @@ export default function NewOrder() {
           {/* Cart Footer */}
           <div className="border-t p-4 space-y-3 bg-muted/30">
             {/* Subtotal */}
-            <div className="flex justify-between items-center">
+            <div className="flex justify-between items-center text-sm">
               <span className="text-muted-foreground">Subtotal</span>
-              <span className="text-2xl font-bold">${subtotal.toFixed(2)}</span>
+              <span>${subtotal.toFixed(2)}</span>
+            </div>
+            {totalBindingFees > 0 && (
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-muted-foreground">Binding</span>
+                <span className="text-primary">+${totalBindingFees.toFixed(2)}</span>
+              </div>
+            )}
+            <div className="flex justify-between items-center pt-2 border-t">
+              <span className="font-medium">Total</span>
+              <span className="text-2xl font-bold">${grandTotal.toFixed(2)}</span>
             </div>
             
             {/* Checkout Button */}

@@ -45,7 +45,10 @@ interface CartItem {
   book: Book;
   quantity: number;
   price: number;
+  wantsBinding?: boolean;
 }
+
+const BINDING_FEE = 5.00;
 
 export default function OrderCheckout() {
   const navigate = useNavigate();
@@ -94,6 +97,8 @@ export default function OrderCheckout() {
   
   // Calculations
   const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+  const totalBindingFees = cart.reduce((sum, item) => sum + (item.wantsBinding ? BINDING_FEE * item.quantity : 0), 0);
+  const subtotalWithBinding = subtotal + totalBindingFees;
   
   // Calculate customer discount (only if toggle is on)
   let customerDiscountAmount = 0;
@@ -101,10 +106,10 @@ export default function OrderCheckout() {
   const hasCustomerDiscount = customer?.default_discount_type && customer?.default_discount_value && customer.default_discount_value > 0;
   if (hasCustomerDiscount && applyCustomerDiscount) {
     if (customer.default_discount_type === 'percentage') {
-      customerDiscountAmount = subtotal * (customer.default_discount_value / 100);
+      customerDiscountAmount = subtotalWithBinding * (customer.default_discount_value / 100);
       customerDiscountLabel = `${customer.default_discount_value}%`;
     } else {
-      customerDiscountAmount = Math.min(customer.default_discount_value, subtotal);
+      customerDiscountAmount = Math.min(customer.default_discount_value, subtotalWithBinding);
       customerDiscountLabel = `$${customer.default_discount_value}`;
     }
   }
@@ -112,7 +117,7 @@ export default function OrderCheckout() {
   // Promo code discount
   let promoDiscountAmount = 0;
   if (appliedPromoCode) {
-    const amountAfterCustomerDiscount = subtotal - customerDiscountAmount;
+    const amountAfterCustomerDiscount = subtotalWithBinding - customerDiscountAmount;
     if (appliedPromoCode.discount_type === 'percentage') {
       promoDiscountAmount = amountAfterCustomerDiscount * (appliedPromoCode.discount_value / 100);
     } else {
@@ -121,7 +126,7 @@ export default function OrderCheckout() {
   }
   
   const totalDiscount = customerDiscountAmount + promoDiscountAmount;
-  const finalTotal = Math.max(0, subtotal - totalDiscount);
+  const finalTotal = Math.max(0, subtotalWithBinding - totalDiscount);
   
   const amount = parseFloat(paymentAmount) || 0;
   const change = amount > finalTotal ? amount - finalTotal : 0;
@@ -144,6 +149,12 @@ export default function OrderCheckout() {
     if (cart.length === 1) {
       navigate('/orders/new');
     }
+  };
+  
+  const toggleBinding = (bookId: string) => {
+    setCart(prev => prev.map(item => 
+      item.book.id === bookId ? { ...item, wantsBinding: !item.wantsBinding } : item
+    ));
   };
   
   // Promo code functions
@@ -188,11 +199,12 @@ export default function OrderCheckout() {
     setIsProcessing(true);
     try {
       let totalBalanceDue = 0;
-      const discountRatio = totalDiscount > 0 ? totalDiscount / subtotal : 0;
+      const discountRatio = totalDiscount > 0 ? totalDiscount / subtotalWithBinding : 0;
       
       for (const item of cart) {
         const hasStock = item.book.quantity_in_stock >= item.quantity;
-        const itemSubtotal = item.price * item.quantity;
+        const itemBindingFee = item.wantsBinding ? BINDING_FEE * item.quantity : 0;
+        const itemSubtotal = item.price * item.quantity + itemBindingFee;
         const itemDiscount = itemSubtotal * discountRatio;
         const itemTotal = itemSubtotal - itemDiscount;
         const itemBalanceDue = isFullPayment ? 0 : itemTotal - Math.min(amount, itemTotal);
@@ -217,9 +229,12 @@ export default function OrderCheckout() {
           balance_due: itemBalanceDue,
           total_amount: itemTotal,
           picked_up_at: hasStock ? new Date().toISOString() : null,
+          wants_binding: item.wantsBinding || false,
+          binding_fee: item.wantsBinding ? BINDING_FEE : 0,
+          binding_fee_applied: itemBindingFee,
           notes: hasStock 
-            ? `[POS - From Stock]${totalDiscount > 0 ? ` | Discount: $${itemDiscount.toFixed(2)}` : ''}` 
-            : `[POS - Will Order]${totalDiscount > 0 ? ` | Discount: $${itemDiscount.toFixed(2)}` : ''}`,
+            ? `[POS - From Stock]${totalDiscount > 0 ? ` | Discount: $${itemDiscount.toFixed(2)}` : ''}${item.wantsBinding ? ' | Needs Binding' : ''}` 
+            : `[POS - Will Order]${totalDiscount > 0 ? ` | Discount: $${itemDiscount.toFixed(2)}` : ''}${item.wantsBinding ? ' | Needs Binding' : ''}`,
         });
         
         if (amount > 0) {
@@ -347,31 +362,50 @@ export default function OrderCheckout() {
               </CardHeader>
               <CardContent className="space-y-3">
                 {cart.map((item) => (
-                  <div key={item.book.id} className="flex items-center gap-4 p-3 bg-muted/50 rounded-lg">
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium truncate">{item.book.title_hebrew || item.book.title}</p>
-                      <p className="text-sm text-muted-foreground">${item.price.toFixed(2)} each</p>
-                      {item.book.quantity_in_stock < item.quantity && (
-                        <Badge variant="outline" className="text-orange-600 border-orange-300">
-                          <Package className="w-3 h-3 mr-1" /> Will Order
-                        </Badge>
+                  <div key={item.book.id} className="p-3 bg-muted/50 rounded-lg">
+                    <div className="flex items-center gap-4">
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium truncate">{item.book.title_hebrew || item.book.title}</p>
+                        <p className="text-sm text-muted-foreground">${item.price.toFixed(2)} each</p>
+                        {item.book.quantity_in_stock < item.quantity && (
+                          <Badge variant="outline" className="text-orange-600 border-orange-300">
+                            <Package className="w-3 h-3 mr-1" /> Will Order
+                          </Badge>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => updateQuantity(item.book.id, -1)}>
+                          <Minus className="w-4 h-4" />
+                        </Button>
+                        <span className="w-8 text-center font-bold text-lg">{item.quantity}</span>
+                        <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => updateQuantity(item.book.id, 1)}>
+                          <Plus className="w-4 h-4" />
+                        </Button>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-bold text-lg">${(item.price * item.quantity + (item.wantsBinding ? BINDING_FEE * item.quantity : 0)).toFixed(2)}</p>
+                      </div>
+                      <Button variant="ghost" size="icon" className="text-destructive" onClick={() => removeFromCart(item.book.id)}>
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                    {/* Binding Option */}
+                    <div className="flex items-center justify-between mt-2 pt-2 border-t border-border/50">
+                      <label className="flex items-center gap-2 cursor-pointer text-sm">
+                        <input 
+                          type="checkbox" 
+                          checked={item.wantsBinding || false}
+                          onChange={() => toggleBinding(item.book.id)}
+                          className="rounded border-gray-300"
+                        />
+                        <span className={item.wantsBinding ? 'text-primary font-medium' : 'text-muted-foreground'}>
+                          Bind this book (+${BINDING_FEE.toFixed(2)}/book)
+                        </span>
+                      </label>
+                      {item.wantsBinding && (
+                        <span className="text-sm text-primary font-medium">+${(BINDING_FEE * item.quantity).toFixed(2)}</span>
                       )}
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => updateQuantity(item.book.id, -1)}>
-                        <Minus className="w-4 h-4" />
-                      </Button>
-                      <span className="w-8 text-center font-bold text-lg">{item.quantity}</span>
-                      <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => updateQuantity(item.book.id, 1)}>
-                        <Plus className="w-4 h-4" />
-                      </Button>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-bold text-lg">${(item.price * item.quantity).toFixed(2)}</p>
-                    </div>
-                    <Button variant="ghost" size="icon" className="text-destructive" onClick={() => removeFromCart(item.book.id)}>
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
                   </div>
                 ))}
               </CardContent>
@@ -493,6 +527,13 @@ export default function OrderCheckout() {
                     <span>${subtotal.toFixed(2)}</span>
                   </div>
                   
+                  {totalBindingFees > 0 && (
+                    <div className="flex justify-between text-primary">
+                      <span>Binding Fees</span>
+                      <span>+${totalBindingFees.toFixed(2)}</span>
+                    </div>
+                  )}
+                  
                   {customerDiscountAmount > 0 && (
                     <div className="flex justify-between text-green-600">
                       <span>Customer Discount ({customerDiscountLabel})</span>
@@ -512,7 +553,7 @@ export default function OrderCheckout() {
                     <div className="text-right">
                       {totalDiscount > 0 && (
                         <span className="text-sm text-muted-foreground line-through mr-2">
-                          ${subtotal.toFixed(2)}
+                          ${subtotalWithBinding.toFixed(2)}
                         </span>
                       )}
                       <span className="text-3xl font-bold text-primary">${finalTotal.toFixed(2)}</span>

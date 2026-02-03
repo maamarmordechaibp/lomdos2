@@ -110,7 +110,7 @@ serve(async (req) => {
     // Build the callback URL for connecting to customer
     const baseUrl = supabaseUrl.replace('https://', '').split('.')[0];
     const functionBaseUrl = `https://${baseUrl}.supabase.co/functions/v1`;
-    const connectUrl = `${functionBaseUrl}/click-to-call-connect?customer_phone=${encodeURIComponent(formattedCustomerPhone)}&customer_name=${encodeURIComponent(displayName)}&call_log_id=${callLog?.id}`;
+    const connectUrl = `${functionBaseUrl}/click-to-call-connect?customer_phone=${encodeURIComponent(formattedCustomerPhone)}&amp;customer_name=${encodeURIComponent(displayName)}&amp;call_log_id=${callLog?.id}&amp;customer_id=${customer_id || ''}`;
     const statusUrl = `${functionBaseUrl}/call-status?call_log_id=${callLog?.id}`;
 
     // Create TwiML to call store owner first, then connect to customer

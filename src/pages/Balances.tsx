@@ -67,6 +67,7 @@ export default function Balances() {
   const [processingCard, setProcessingCard] = useState(false);
   const [sendingReminders, setSendingReminders] = useState(false);
   const [customerPayments, setCustomerPayments] = useState<CustomerPayment[]>([]);
+  const [customerOrders, setCustomerOrders] = useState<any[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
   
   // Reminder filter state
@@ -208,14 +209,25 @@ export default function Balances() {
     setLoadingHistory(true);
     
     try {
-      const { data, error } = await supabase
+      // Load payments
+      const { data: payments, error: paymentsError } = await supabase
         .from('customer_payments')
         .select('*')
         .eq('customer_id', customer.id)
         .order('created_at', { ascending: false });
       
-      if (error) throw error;
-      setCustomerPayments(data as unknown as CustomerPayment[]);
+      if (paymentsError) throw paymentsError;
+      setCustomerPayments(payments as unknown as CustomerPayment[]);
+      
+      // Load orders to show what contributed to the balance
+      const { data: orders, error: ordersError } = await supabase
+        .from('customer_orders')
+        .select('*, book:books(title)')
+        .eq('customer_id', customer.id)
+        .order('created_at', { ascending: false });
+      
+      if (ordersError) throw ordersError;
+      setCustomerOrders(orders || []);
     } catch (error) {
       console.error('Error loading payment history:', error);
       toast.error('Failed to load payment history');
@@ -636,35 +648,76 @@ export default function Balances() {
       <Dialog open={historyDialog.open} onOpenChange={(open) => !open && setHistoryDialog({ open: false, customer: null })}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Payment History - {historyDialog.customer?.name}</DialogTitle>
+            <DialogTitle>Account History - {historyDialog.customer?.name}</DialogTitle>
+            <DialogDescription>
+              Current balance: ${historyDialog.customer?.outstanding_balance?.toFixed(2) || '0.00'}
+            </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 max-h-96 overflow-y-auto">
-            {loadingHistory ? (
-              <div className="text-center py-8">Loading...</div>
-            ) : customerPayments.length > 0 ? (
-              customerPayments.map((payment) => (
-                <div 
-                  key={payment.id}
-                  className="flex items-center justify-between p-3 rounded-lg bg-secondary/30"
-                >
-                  <div>
-                    <p className="font-medium">${payment.amount.toFixed(2)}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {format(new Date(payment.created_at), 'MMM d, yyyy h:mm a')}
-                      {payment.payment_method && ` • ${payment.payment_method}`}
-                    </p>
-                    {payment.notes && (
-                      <p className="text-sm text-muted-foreground mt-1">{payment.notes}</p>
-                    )}
+          <Tabs defaultValue="payments" className="w-full">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="payments">Payments ({customerPayments.length})</TabsTrigger>
+              <TabsTrigger value="orders">Orders ({customerOrders.length})</TabsTrigger>
+            </TabsList>
+            <TabsContent value="payments" className="space-y-4 max-h-72 overflow-y-auto mt-4">
+              {loadingHistory ? (
+                <div className="text-center py-8">Loading...</div>
+              ) : customerPayments.length > 0 ? (
+                customerPayments.map((payment) => (
+                  <div 
+                    key={payment.id}
+                    className="flex items-center justify-between p-3 rounded-lg bg-green-500/10"
+                  >
+                    <div>
+                      <p className="font-medium text-green-600">+${payment.amount.toFixed(2)}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {format(new Date(payment.created_at), 'MMM d, yyyy h:mm a')}
+                        {payment.payment_method && ` • ${payment.payment_method}`}
+                      </p>
+                      {payment.notes && (
+                        <p className="text-sm text-muted-foreground mt-1">{payment.notes}</p>
+                      )}
+                    </div>
                   </div>
+                ))
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  No payments recorded yet
                 </div>
-              ))
-            ) : (
-              <div className="text-center py-8 text-muted-foreground">
-                No payment history
-              </div>
-            )}
-          </div>
+              )}
+            </TabsContent>
+            <TabsContent value="orders" className="space-y-4 max-h-72 overflow-y-auto mt-4">
+              {loadingHistory ? (
+                <div className="text-center py-8">Loading...</div>
+              ) : customerOrders.length > 0 ? (
+                customerOrders.map((order) => (
+                  <div 
+                    key={order.id}
+                    className="flex items-center justify-between p-3 rounded-lg bg-secondary/30"
+                  >
+                    <div>
+                      <p className="font-medium">{(order.book as any)?.title || 'Unknown Book'}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {format(new Date(order.created_at), 'MMM d, yyyy')}
+                        <Badge variant="outline" className="ml-2 capitalize">{order.status}</Badge>
+                        <Badge variant={order.payment_status === 'paid' ? 'default' : 'destructive'} className="ml-1 capitalize">
+                          {order.payment_status || 'unpaid'}
+                        </Badge>
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className={`font-medium ${order.payment_status === 'paid' ? 'text-muted-foreground' : 'text-red-600'}`}>
+                        ${(order.final_price || 0).toFixed(2)}
+                      </p>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  No orders yet
+                </div>
+              )}
+            </TabsContent>
+          </Tabs>
         </DialogContent>
       </Dialog>
 

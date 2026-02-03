@@ -12,7 +12,9 @@ import {
   Phone,
   MessageSquare,
   Mail,
-  Truck
+  Truck,
+  BookMarked,
+  AlertTriangle
 } from 'lucide-react';
 import { useCustomerOrders, useUpdateCustomerOrder } from '@/hooks/useOrders';
 import { useUpdateBook } from '@/hooks/useBooks';
@@ -20,6 +22,7 @@ import { useSettings } from '@/hooks/useSettings';
 import { useCreateExpense } from '@/hooks/useBalances';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import {
   Dialog,
@@ -237,6 +240,12 @@ export default function ReceiveOrders() {
                             {order.amount_paid.toFixed(2)} deposit paid
                           </span>
                         )}
+                        {order.wants_binding && (
+                          <Badge variant="secondary" className="bg-amber-100 text-amber-800 border-amber-300">
+                            <BookMarked className="w-3 h-3 mr-1" />
+                            Needs Binding
+                          </Badge>
+                        )}
                       </div>
                     </div>
                     <div className="w-32">
@@ -306,9 +315,21 @@ export default function ReceiveOrders() {
                               Deposit: ${order.deposit_amount}
                             </span>
                           )}
+                          {order.wants_binding && (
+                            <Badge variant="secondary" className="bg-amber-100 text-amber-800 border-amber-300">
+                              <BookMarked className="w-3 h-3 mr-1" />
+                              Needs Binding
+                            </Badge>
+                          )}
                         </div>
                       </div>
                     </div>
+                    {order.wants_binding && (
+                      <div className="bg-amber-50 border border-amber-200 rounded-lg p-2 mr-4 flex items-center gap-2 text-amber-800">
+                        <AlertTriangle className="w-4 h-4" />
+                        <span className="text-xs font-medium">Bind before marking ready!</span>
+                      </div>
+                    )}
                     <Button onClick={() => handleMarkReady(order.id)}>
                       Mark Ready & Notify
                     </Button>

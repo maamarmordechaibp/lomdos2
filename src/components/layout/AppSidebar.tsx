@@ -19,6 +19,7 @@ import {
   LogOut,
   Phone,
   Tag,
+  Handshake,
 } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
@@ -57,6 +58,7 @@ const managementItems = [
   { title: 'Promo Codes', icon: Tag, path: '/promo-codes' },
   { title: 'Balances', icon: DollarSign, path: '/balances' },
   { title: 'Financials', icon: BarChart3, path: '/financials' },
+  { title: 'Partner Accounting', icon: Handshake, path: '/partner-accounting' },
   { title: 'Call Logs', icon: Phone, path: '/call-logs' },
 ];
 

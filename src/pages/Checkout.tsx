@@ -17,6 +17,8 @@ import {
   X,
   Percent,
   Tag,
+  Gift,
+  Search,
 } from 'lucide-react';
 import {
   Select,
@@ -52,9 +54,14 @@ export default function Checkout() {
   
   // State
   const [paymentAmount, setPaymentAmount] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card'>('cash');
+  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'gift_card'>('cash');
   const [showCardDialog, setShowCardDialog] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  
+  // Gift card state
+  const [giftCardNumber, setGiftCardNumber] = useState('');
+  const [giftCardData, setGiftCardData] = useState<{ id: string; card_number: string; balance: number; holder_name: string | null } | null>(null);
+  const [giftCardLookupLoading, setGiftCardLookupLoading] = useState(false);
   
   // Discount state
   const [discountType, setDiscountType] = useState<'none' | 'percentage' | 'fixed'>('none');
@@ -102,6 +109,132 @@ export default function Checkout() {
   const amount = parseFloat(paymentAmount) || 0;
   const isFullPayment = amount >= balanceDue;
   const change = amount > balanceDue ? amount - balanceDue : 0;
+  
+  // Gift card lookup
+  const lookupGiftCard = async () => {
+    if (!giftCardNumber.trim()) {
+      toast.error('Please enter a gift card number');
+      return;
+    }
+    setGiftCardLookupLoading(true);
+    try {
+      const { data, error } = await (supabase as any)
+        .from('gift_cards')
+        .select('id, card_number, balance, holder_name, is_active')
+        .eq('card_number', giftCardNumber.trim())
+        .single();
+      if (error || !data) {
+        toast.error('Gift card not found');
+        setGiftCardData(null);
+        return;
+      }
+      if (!data.is_active) {
+        toast.error('This gift card is inactive');
+        setGiftCardData(null);
+        return;
+      }
+      if ((data.balance || 0) <= 0) {
+        toast.error('This gift card has no balance');
+        setGiftCardData(null);
+        return;
+      }
+      setGiftCardData(data);
+      // Auto-set payment amount to min of balance and balance due
+      const maxFromCard = Math.min(data.balance, balanceDue);
+      setPaymentAmount(maxFromCard.toFixed(2));
+      toast.success(`Gift card found: $${Number(data.balance).toFixed(2)} available`);
+    } catch {
+      toast.error('Failed to look up gift card');
+      setGiftCardData(null);
+    } finally {
+      setGiftCardLookupLoading(false);
+    }
+  };
+  
+  // Gift card payment handler
+  const handleGiftCardPayment = async () => {
+    if (!giftCardData) {
+      toast.error('Please look up a gift card first');
+      return;
+    }
+    if (amount <= 0) {
+      toast.error('Please enter an amount');
+      return;
+    }
+    if (amount > giftCardData.balance) {
+      toast.error(`Gift card only has $${Number(giftCardData.balance).toFixed(2)} — reduce the amount`);
+      return;
+    }
+    
+    setIsProcessing(true);
+    try {
+      const discountPerOrder = discountAmount / orders.length;
+      let remainingPayment = amount;
+      
+      for (const order of orders) {
+        const originalPrice = order.final_price || 0;
+        const orderFinalPrice = discountAmount > 0
+          ? Math.max(0, originalPrice - discountPerOrder)
+          : originalPrice;
+        
+        const orderBalance = orderFinalPrice - (order.amount_paid || 0);
+        const paymentForOrder = Math.min(remainingPayment, Math.max(0, orderBalance));
+        remainingPayment = Math.max(0, remainingPayment - paymentForOrder);
+        const newAmountPaid = (order.amount_paid || 0) + paymentForOrder;
+        const isPaidInFull = newAmountPaid >= (orderFinalPrice - 0.01);
+        
+        const updateData: any = {
+          id: order.id,
+          payment_status: isPaidInFull ? 'paid' : 'partial',
+          payment_method: order.payment_method && order.payment_method !== 'gift_card' ? 'mixed' : 'cash',
+          amount_paid: newAmountPaid,
+          balance_due: Math.max(0, orderFinalPrice - newAmountPaid),
+          status: isPaidInFull ? 'ready' : order.status,
+        };
+        
+        if (discountAmount > 0) {
+          updateData.original_price = originalPrice;
+          updateData.final_price = orderFinalPrice;
+          updateData.discount_type = discountType;
+          updateData.discount_value = parseFloat(discountValue);
+          updateData.discount_reason = discountReason || null;
+        }
+        
+        await updateOrder.mutateAsync(updateData);
+        
+        if (paymentForOrder > 0) {
+          await supabase.from('customer_payments').insert({
+            customer_id: order.customer_id,
+            order_id: order.id,
+            amount: paymentForOrder,
+            payment_method: 'other',
+            notes: `Gift card ${giftCardData.card_number}`,
+          });
+        }
+      }
+      
+      // Record gift card redemption transaction
+      await (supabase as any).from('gift_card_transactions').insert({
+        gift_card_id: giftCardData.id,
+        transaction_type: 'redeem',
+        amount: amount,
+        reference: `Order payment for ${customer?.name || 'customer'}`,
+        notes: orders.map(o => o.book?.title).filter(Boolean).join(', '),
+      });
+      
+      toast.success(`$${amount.toFixed(2)} redeemed from gift card ${giftCardData.card_number}`);
+      
+      if (isFullPayment) {
+        navigate('/pickups');
+      } else {
+        navigate('/orders');
+      }
+    } catch (error) {
+      toast.error('Failed to process gift card payment');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
   
   const handleCashPayment = async () => {
     if (amount <= 0) {
@@ -574,7 +707,7 @@ export default function Checkout() {
                 {/* Payment Method */}
                 <div className="space-y-3">
                   <Label className="text-base font-medium">Payment Method</Label>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-3 gap-3">
                     <Button
                       type="button"
                       variant={paymentMethod === 'cash' ? 'default' : 'outline'}
@@ -593,8 +726,60 @@ export default function Checkout() {
                       <CreditCard className="w-6 h-6" />
                       <span>Card</span>
                     </Button>
+                    <Button
+                      type="button"
+                      variant={paymentMethod === 'gift_card' ? 'default' : 'outline'}
+                      className="h-16 flex flex-col gap-1"
+                      onClick={() => setPaymentMethod('gift_card')}
+                    >
+                      <Gift className="w-6 h-6" />
+                      <span>Gift Card</span>
+                    </Button>
                   </div>
                 </div>
+                
+                {/* Gift Card Lookup */}
+                {paymentMethod === 'gift_card' && (
+                  <div className="space-y-3 p-4 border rounded-lg bg-purple-50 dark:bg-purple-900/20">
+                    <Label className="text-sm font-medium">Gift Card Number</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        value={giftCardNumber}
+                        onChange={(e) => setGiftCardNumber(e.target.value)}
+                        placeholder="GC-12345678"
+                        className="flex-1"
+                      />
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={lookupGiftCard}
+                        disabled={giftCardLookupLoading}
+                      >
+                        {giftCardLookupLoading ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Search className="w-4 h-4" />
+                        )}
+                      </Button>
+                    </div>
+                    {giftCardData && (
+                      <div className="p-3 bg-white dark:bg-background rounded-lg border border-purple-200 dark:border-purple-800">
+                        <div className="flex justify-between items-center">
+                          <div>
+                            <p className="font-medium text-sm">{giftCardData.card_number}</p>
+                            {giftCardData.holder_name && (
+                              <p className="text-xs text-muted-foreground">{giftCardData.holder_name}</p>
+                            )}
+                          </div>
+                          <div className="text-right">
+                            <p className="text-lg font-bold text-purple-600">${Number(giftCardData.balance).toFixed(2)}</p>
+                            <p className="text-xs text-muted-foreground">available</p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
                 
                 {/* Action Buttons */}
                 <div className="flex gap-3 pt-4 border-t">
@@ -622,7 +807,7 @@ export default function Checkout() {
                         <><Check className="w-4 h-4 mr-2" /> Pay Cash</>
                       )}
                     </Button>
-                  ) : (
+                  ) : paymentMethod === 'card' ? (
                     <Button
                       onClick={() => setShowCardDialog(true)}
                       disabled={amount <= 0}
@@ -631,6 +816,19 @@ export default function Checkout() {
                     >
                       <CreditCard className="w-4 h-4 mr-2" />
                       Enter Card
+                    </Button>
+                  ) : (
+                    <Button
+                      onClick={handleGiftCardPayment}
+                      disabled={isProcessing || amount <= 0 || !giftCardData}
+                      size="lg"
+                      className="flex-1"
+                    >
+                      {isProcessing ? (
+                        <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Processing...</>
+                      ) : (
+                        <><Gift className="w-4 h-4 mr-2" /> Redeem Gift Card</>
+                      )}
                     </Button>
                   )}
                 </div>

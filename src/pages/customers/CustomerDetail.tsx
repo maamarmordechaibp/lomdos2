@@ -33,6 +33,8 @@ import {
   Loader2,
   Trash2,
   Pencil,
+  Gift,
+  Search,
 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -89,13 +91,18 @@ export default function CustomerDetail() {
   const [editForm, setEditForm] = useState<Partial<Omit<Customer, 'default_discount_type'>> & { default_discount_type?: 'percentage' | 'fixed' | 'none' | null }>({});
   const [paymentDialog, setPaymentDialog] = useState(false);
   const [paymentAmount, setPaymentAmount] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'check'>('cash');
+  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'check' | 'gift_card'>('cash');
   const [paymentNotes, setPaymentNotes] = useState('');
   const [cardNumber, setCardNumber] = useState('');
   const [cardExpiry, setCardExpiry] = useState('');
   const [cardCvv, setCardCvv] = useState('');
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  
+  // Gift card state
+  const [gcNumber, setGcNumber] = useState('');
+  const [gcData, setGcData] = useState<{ id: string; card_number: string; balance: number; holder_name: string | null } | null>(null);
+  const [gcLookupLoading, setGcLookupLoading] = useState(false);
   
   // Edit payment state
   const [editPaymentDialog, setEditPaymentDialog] = useState(false);
@@ -132,7 +139,49 @@ export default function CustomerDetail() {
     setCardExpiry('');
     setCardCvv('');
     setPaymentNotes('');
+    setGcNumber('');
+    setGcData(null);
     setPaymentDialog(true);
+  };
+
+  // Gift card lookup for balance payment
+  const lookupGcForPayment = async () => {
+    if (!gcNumber.trim()) {
+      toast.error('Please enter a gift card number');
+      return;
+    }
+    setGcLookupLoading(true);
+    try {
+      const { data, error } = await (supabase as any)
+        .from('gift_cards')
+        .select('id, card_number, balance, holder_name, is_active')
+        .eq('card_number', gcNumber.trim())
+        .single();
+      if (error || !data) {
+        toast.error('Gift card not found');
+        setGcData(null);
+        return;
+      }
+      if (!data.is_active) {
+        toast.error('This gift card is inactive');
+        setGcData(null);
+        return;
+      }
+      if ((data.balance || 0) <= 0) {
+        toast.error('This gift card has no balance');
+        setGcData(null);
+        return;
+      }
+      setGcData(data);
+      const maxFromCard = Math.min(data.balance, customer?.outstanding_balance || 0);
+      setPaymentAmount(maxFromCard.toFixed(2));
+      toast.success(`Gift card found: $${Number(data.balance).toFixed(2)} available`);
+    } catch {
+      toast.error('Failed to look up gift card');
+      setGcData(null);
+    } finally {
+      setGcLookupLoading(false);
+    }
   };
 
   // Fetch customer
@@ -213,6 +262,50 @@ export default function CustomerDetail() {
 
     setIsProcessingPayment(true);
     try {
+      // If gift card payment
+      if (paymentMethod === 'gift_card') {
+        if (!gcData) {
+          throw new Error('Please look up a gift card first');
+        }
+        if (amount > gcData.balance) {
+          throw new Error(`Gift card only has $${Number(gcData.balance).toFixed(2)}`);
+        }
+
+        // Record customer payment
+        const { error: paymentError } = await supabase
+          .from('customer_payments')
+          .insert({
+            customer_id: id,
+            amount,
+            payment_method: 'other',
+            notes: `Gift card ${gcData.card_number}`,
+          });
+        if (paymentError) throw paymentError;
+
+        // Record gift card redemption
+        await (supabase as any).from('gift_card_transactions').insert({
+          gift_card_id: gcData.id,
+          transaction_type: 'redeem',
+          amount,
+          reference: `Balance payment for ${customer?.name || 'customer'}`,
+        });
+
+        // Update customer balance
+        const newBalance = Math.max(0, (customer?.outstanding_balance || 0) - amount);
+        await supabase.from('customers').update({ outstanding_balance: newBalance }).eq('id', id);
+
+        queryClient.invalidateQueries({ queryKey: ['customer', id] });
+        queryClient.invalidateQueries({ queryKey: ['customer-payments', id] });
+        queryClient.invalidateQueries({ queryKey: ['customers-with-balance'] });
+        toast.success(`$${amount.toFixed(2)} redeemed from gift card ${gcData.card_number}`);
+        setPaymentDialog(false);
+        setPaymentAmount('');
+        setGcNumber('');
+        setGcData(null);
+        setIsProcessingPayment(false);
+        return;
+      }
+
       // If card payment, process through Sola/Cardknox payment gateway
       if (paymentMethod === 'card') {
         const cleanCardNumber = cardNumber.replace(/\s/g, '');
@@ -1007,6 +1100,7 @@ export default function CustomerDetail() {
                   <SelectItem value="cash">Cash</SelectItem>
                   <SelectItem value="card">Card</SelectItem>
                   <SelectItem value="check">Check</SelectItem>
+                  <SelectItem value="gift_card">Gift Card</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -1053,6 +1147,39 @@ export default function CustomerDetail() {
               </div>
             )}
             
+            {/* Gift Card Input */}
+            {paymentMethod === 'gift_card' && (
+              <div className="space-y-2 p-3 border rounded-lg bg-purple-50 dark:bg-purple-900/20">
+                <Label className="text-sm">Gift Card Number</Label>
+                <div className="flex gap-2">
+                  <Input
+                    value={gcNumber}
+                    onChange={(e) => setGcNumber(e.target.value)}
+                    placeholder="GC-12345678"
+                    className="flex-1 h-9"
+                  />
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={lookupGcForPayment}
+                    disabled={gcLookupLoading}
+                  >
+                    {gcLookupLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
+                  </Button>
+                </div>
+                {gcData && (
+                  <div className="p-2 bg-white dark:bg-background rounded border border-purple-200 dark:border-purple-800 flex justify-between items-center">
+                    <div>
+                      <p className="font-medium text-sm">{gcData.card_number}</p>
+                      {gcData.holder_name && <p className="text-xs text-muted-foreground">{gcData.holder_name}</p>}
+                    </div>
+                    <p className="text-sm font-bold text-purple-600">${Number(gcData.balance).toFixed(2)}</p>
+                  </div>
+                )}
+              </div>
+            )}
+            
             <div className="space-y-2">
               <Label>Notes (optional)</Label>
               <Input
@@ -1071,7 +1198,7 @@ export default function CustomerDetail() {
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                   Processing...
                 </>
-              ) : paymentMethod === 'card' ? 'Pay by Card' : 'Record Payment'}
+              ) : paymentMethod === 'card' ? 'Pay by Card' : paymentMethod === 'gift_card' ? 'Redeem Gift Card' : 'Record Payment'}
             </Button>
           </DialogFooter>
         </DialogContent>

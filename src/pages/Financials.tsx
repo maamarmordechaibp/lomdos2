@@ -15,9 +15,11 @@ import {
   FileText,
   Download,
   CreditCard,
-  User
+  User,
+  Users
 } from 'lucide-react';
 import { useFinancialSummary, useExpenses, useCreateExpense, useBookProfitability, useAllCustomerPayments } from '@/hooks/useBalances';
+import { usePartnerSettings, usePartnerDrawsSummary } from '@/hooks/usePartnerAccounting';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import {
@@ -79,6 +81,8 @@ export default function Financials() {
     endDate: selectedMonth ? `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-${getLastDayOfMonth(selectedYear, selectedMonth)}` : `${selectedYear}-12-31`,
   });
   const createExpense = useCreateExpense();
+  const { settings: partnerSettings } = usePartnerSettings();
+  const { summary: drawsSummary } = usePartnerDrawsSummary(selectedYear, selectedMonth || currentMonth);
   
   const [expenseDialog, setExpenseDialog] = useState(false);
   const [expenseForm, setExpenseForm] = useState({
@@ -262,6 +266,77 @@ export default function Financials() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Partner Profit Split */}
+        {partnerSettings && summary && (
+          <Card className="shadow-card border-purple-500/20 bg-purple-500/5">
+            <CardHeader className="pb-2">
+              <CardTitle className="font-display flex items-center gap-2 text-lg">
+                <Users className="w-5 h-5 text-purple-600" />
+                Partner Profit Split
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {(() => {
+                const netProfit = summary.netProfit || 0;
+                const splitPct = partnerSettings.profit_split_percentage || 50;
+                const partner1Share = netProfit * (splitPct / 100);
+                const partner2Share = netProfit * ((100 - splitPct) / 100);
+                const partner1Draws = drawsSummary?.partner1Total || 0;
+                const partner2Draws = drawsSummary?.partner2Total || 0;
+                const partner1Remaining = partner1Share - partner1Draws;
+                const partner2Remaining = partner2Share - partner2Draws;
+
+                return (
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <div className="p-4 rounded-lg bg-white dark:bg-background border">
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="font-medium">{partnerSettings.partner1_name}</p>
+                        <Badge variant="outline">{splitPct}%</Badge>
+                      </div>
+                      <p className={`text-2xl font-bold ${partner1Share >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        ${partner1Share.toFixed(2)}
+                      </p>
+                      <div className="mt-2 text-sm text-muted-foreground space-y-1">
+                        <div className="flex justify-between">
+                          <span>Draws taken:</span>
+                          <span className="font-medium text-orange-600">-${partner1Draws.toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between border-t pt-1">
+                          <span>Remaining:</span>
+                          <span className={`font-bold ${partner1Remaining >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            ${partner1Remaining.toFixed(2)}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="p-4 rounded-lg bg-white dark:bg-background border">
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="font-medium">{partnerSettings.partner2_name}</p>
+                        <Badge variant="outline">{100 - splitPct}%</Badge>
+                      </div>
+                      <p className={`text-2xl font-bold ${partner2Share >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        ${partner2Share.toFixed(2)}
+                      </p>
+                      <div className="mt-2 text-sm text-muted-foreground space-y-1">
+                        <div className="flex justify-between">
+                          <span>Draws taken:</span>
+                          <span className="font-medium text-orange-600">-${partner2Draws.toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between border-t pt-1">
+                          <span>Remaining:</span>
+                          <span className={`font-bold ${partner2Remaining >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            ${partner2Remaining.toFixed(2)}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+            </CardContent>
+          </Card>
+        )}
 
         {/* Tax Info */}
         <Card className="shadow-card border-blue-500/20 bg-blue-500/5">

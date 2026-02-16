@@ -120,6 +120,9 @@ export function useCreateCustomerOrder() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['customer-orders'] });
       queryClient.invalidateQueries({ queryKey: ['pending-supplier-assignments'] });
+      queryClient.invalidateQueries({ queryKey: ['financial-summary'] });
+      queryClient.invalidateQueries({ queryKey: ['book-profitability'] });
+      queryClient.invalidateQueries({ queryKey: ['all-customer-payments'] });
       toast.success('Order created successfully');
     },
     onError: (error) => {
@@ -144,6 +147,9 @@ export function useUpdateCustomerOrder() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['customer-orders'] });
+      queryClient.invalidateQueries({ queryKey: ['financial-summary'] });
+      queryClient.invalidateQueries({ queryKey: ['book-profitability'] });
+      queryClient.invalidateQueries({ queryKey: ['all-customer-payments'] });
       toast.success('Order updated successfully');
     },
     onError: (error) => {

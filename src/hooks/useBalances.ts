@@ -121,6 +121,8 @@ export function useCreateCustomerPayment() {
       queryClient.invalidateQueries({ queryKey: ['customers-with-balance'] });
       queryClient.invalidateQueries({ queryKey: ['customers'] });
       queryClient.invalidateQueries({ queryKey: ['all-customer-payments'] });
+      queryClient.invalidateQueries({ queryKey: ['financial-summary'] });
+      queryClient.invalidateQueries({ queryKey: ['book-profitability'] });
       toast.success('Payment recorded successfully');
     },
     onError: (error) => {

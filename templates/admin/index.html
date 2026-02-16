@@ -1,0 +1,224 @@
+{% extends "admin/base_site.html" %}
+{% load i18n static %}
+
+{% block extrastyle %}{{ block.super }}
+<style>
+    /* Dashboard Layout */
+    #content-main {
+        padding: 0;
+    }
+    
+    /* Quick Actions */
+    .quick-actions {
+        background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+        color: white;
+        padding: 1.5rem;
+        border-radius: 8px;
+        margin-bottom: 1.5rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 1rem;
+    }
+    
+    .quick-actions h2 {
+        margin: 0;
+        font-size: 1.25rem;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    
+    .quick-actions-links {
+        display: flex;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+    }
+    
+    .quick-actions-links a {
+        background: rgba(255,255,255,0.2);
+        color: white;
+        padding: 0.5rem 1rem;
+        border-radius: 6px;
+        text-decoration: none;
+        font-weight: 500;
+        font-size: 0.875rem;
+        transition: all 0.15s;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    
+    .quick-actions-links a:hover {
+        background: rgba(255,255,255,0.3);
+    }
+    
+    /* App Grid */
+    .app-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+        gap: 1.5rem;
+    }
+    
+    /* App Card */
+    .app-card {
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        border: 1px solid #e5e7eb;
+        overflow: hidden;
+    }
+    
+    .app-card-header {
+        background: #f9fafb;
+        padding: 1rem;
+        border-bottom: 1px solid #e5e7eb;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+    
+    .app-card-header .icon {
+        width: 40px;
+        height: 40px;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.25rem;
+    }
+    
+    .app-card-header h3 {
+        margin: 0;
+        font-size: 1rem;
+        font-weight: 600;
+        color: #111827;
+    }
+    
+    /* Icon colors by app */
+    .app-books .icon { background: #dbeafe; }
+    .app-customers .icon { background: #d1fae5; }
+    .app-orders .icon { background: #fef3c7; }
+    .app-suppliers .icon { background: #fce7f3; }
+    .app-auth .icon { background: #e5e7eb; }
+    .app-django_celery_beat .icon { background: #fae8ff; }
+    .app-django_celery_results .icon { background: #fae8ff; }
+    .app-post_office .icon { background: #ccfbf1; }
+    
+    .app-card-body {
+        padding: 0;
+    }
+    
+    .app-card-body ul {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+    }
+    
+    .app-card-body li {
+        border-bottom: 1px solid #f3f4f6;
+    }
+    
+    .app-card-body li:last-child {
+        border-bottom: none;
+    }
+    
+    .app-card-body a {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.75rem 1rem;
+        color: #374151;
+        text-decoration: none;
+        font-size: 0.875rem;
+        transition: all 0.15s;
+    }
+    
+    .app-card-body a:hover {
+        background: #f9fafb;
+        color: #4f46e5;
+    }
+    
+    .app-card-body .model-actions {
+        display: flex;
+        gap: 0.5rem;
+    }
+    
+    .app-card-body .model-actions a {
+        padding: 0.25rem 0.5rem;
+        background: #f3f4f6;
+        border-radius: 4px;
+        font-size: 0.75rem;
+        color: #6b7280;
+    }
+    
+    .app-card-body .model-actions a:hover {
+        background: #e5e7eb;
+        color: #374151;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="content-main">
+    <!-- Quick Actions Banner -->
+    <div class="quick-actions">
+        <h2>📚 Bookstore Dashboard</h2>
+        <div class="quick-actions-links">
+            <a href="{% url 'orders:order_create' %}">➕ New Order</a>
+            <a href="{% url 'admin:books_book_add' %}">📖 Add Book</a>
+            <a href="{% url 'admin:customers_customer_add' %}">👤 Add Customer</a>
+            <a href="{% url 'suppliers:pending_receiving' %}">📦 Receiving</a>
+        </div>
+    </div>
+
+    <!-- App Grid -->
+    <div class="app-grid">
+        {% regroup app_list by app_label as apps_grouped %}
+        {% for app in app_list %}
+            <div class="app-card app-{{ app.app_label }}">
+                <div class="app-card-header">
+                    <div class="icon">
+                        {% if app.app_label == 'books' %}📚
+                        {% elif app.app_label == 'customers' %}👥
+                        {% elif app.app_label == 'orders' %}📦
+                        {% elif app.app_label == 'suppliers' %}🏢
+                        {% elif app.app_label == 'auth' %}🔐
+                        {% elif app.app_label == 'django_celery_beat' %}⏰
+                        {% elif app.app_label == 'django_celery_results' %}📊
+                        {% elif app.app_label == 'post_office' %}📧
+                        {% else %}📁{% endif %}
+                    </div>
+                    <h3>{{ app.name }}</h3>
+                </div>
+                <div class="app-card-body">
+                    <ul>
+                        {% for model in app.models %}
+                            <li>
+                                {% if model.admin_url %}
+                                    <a href="{{ model.admin_url }}">
+                                        <span>{{ model.name }}</span>
+                                        <span class="model-actions">
+                                            {% if model.add_url %}
+                                                <a href="{{ model.add_url }}">+ Add</a>
+                                            {% endif %}
+                                        </span>
+                                    </a>
+                                {% else %}
+                                    <span style="padding: 0.75rem 1rem; display: block; color: #9ca3af;">{{ model.name }}</span>
+                                {% endif %}
+                            </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+        {% empty %}
+            <p class="empty-text">{% translate "You don't have permission to view or edit anything." %}</p>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}
+
+{% block sidebar %}{% endblock %}

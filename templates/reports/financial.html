@@ -1,0 +1,180 @@
+{% extends 'base.html' %}
+
+{% block page_title %}Financial Reports{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="stat-card" style="border-left-color: #28a745;">
+            <h6 class="text-muted mb-2">Total Income</h6>
+            <h2 class="text-success mb-0">${{ total_income|floatformat:2 }}</h2>
+            <small class="text-muted">From customer payments</small>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="stat-card" style="border-left-color: #dc3545;">
+            <h6 class="text-muted mb-2">Total Expenses</h6>
+            <h2 class="text-danger mb-0">${{ total_expenses|floatformat:2 }}</h2>
+            <small class="text-muted">Paid to suppliers</small>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="stat-card" style="border-left-color: #007bff;">
+            <h6 class="text-muted mb-2">Net Profit</h6>
+            <h2 class="{% if total_profit >= 0 %}text-success{% else %}text-danger{% endif %} mb-0">${{ total_profit|floatformat:2 }}</h2>
+            <small class="text-muted">All time</small>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="stat-card" style="border-left-color: #ffc107;">
+            <h6 class="text-muted mb-2">This Month</h6>
+            <h2 class="{% if month_profit >= 0 %}text-success{% else %}text-danger{% endif %} mb-0">${{ month_profit|floatformat:2 }}</h2>
+            <small class="text-muted">Profit</small>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="bi bi-bar-chart"></i> Financial Summary</h5>
+            </div>
+            <div class="card-body">
+                <div class="row text-center">
+                    <div class="col-md-3">
+                        <h6 class="text-muted">This Week</h6>
+                        <div class="mb-2">
+                            <span class="text-success">Income: ${{ week_income|floatformat:2 }}</span>
+                        </div>
+                        <div class="mb-2">
+                            <span class="text-danger">Expenses: ${{ week_expenses|floatformat:2 }}</span>
+                        </div>
+                        <div>
+                            <strong class="{% if week_profit >= 0 %}text-success{% else %}text-danger{% endif %}">
+                                Profit: ${{ week_profit|floatformat:2 }}
+                            </strong>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <h6 class="text-muted">This Month</h6>
+                        <div class="mb-2">
+                            <span class="text-success">Income: ${{ month_income|floatformat:2 }}</span>
+                        </div>
+                        <div class="mb-2">
+                            <span class="text-danger">Expenses: ${{ month_expenses|floatformat:2 }}</span>
+                        </div>
+                        <div>
+                            <strong class="{% if month_profit >= 0 %}text-success{% else %}text-danger{% endif %}">
+                                Profit: ${{ month_profit|floatformat:2 }}
+                            </strong>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <h6 class="text-muted">This Year</h6>
+                        <div class="mb-2">
+                            <span class="text-success">Income: ${{ year_income|floatformat:2 }}</span>
+                        </div>
+                        <div class="mb-2">
+                            <span class="text-danger">Expenses: ${{ year_expenses|floatformat:2 }}</span>
+                        </div>
+                        <div>
+                            <strong class="{% if year_profit >= 0 %}text-success{% else %}text-danger{% endif %}">
+                                Profit: ${{ year_profit|floatformat:2 }}
+                            </strong>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <h6 class="text-muted">All Time</h6>
+                        <div class="mb-2">
+                            <span class="text-success">Income: ${{ total_income|floatformat:2 }}</span>
+                        </div>
+                        <div class="mb-2">
+                            <span class="text-danger">Expenses: ${{ total_expenses|floatformat:2 }}</span>
+                        </div>
+                        <div>
+                            <strong class="{% if total_profit >= 0 %}text-success{% else %}text-danger{% endif %}">
+                                Profit: ${{ total_profit|floatformat:2 }}
+                            </strong>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="bi bi-arrow-down-circle text-success"></i> Recent Customer Payments (Income)</h5>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead>
+                            <tr>
+                                <th>Order #</th>
+                                <th>Customer</th>
+                                <th>Date</th>
+                                <th>Amount</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for order in recent_customer_orders %}
+                            <tr>
+                                <td>{{ order.order_number }}</td>
+                                <td>{{ order.customer }}</td>
+                                <td>{{ order.created_at|date:"M d, Y" }}</td>
+                                <td><strong class="text-success">${{ order.total|floatformat:2 }}</strong></td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="4" class="text-center py-3 text-muted">No transactions yet</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="bi bi-arrow-up-circle text-danger"></i> Recent Supplier Payments (Expenses)</h5>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead>
+                            <tr>
+                                <th>Order #</th>
+                                <th>Supplier</th>
+                                <th>Date</th>
+                                <th>Amount</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for order in recent_supplier_orders %}
+                            <tr>
+                                <td>{{ order.order_number }}</td>
+                                <td>{{ order.supplier }}</td>
+                                <td>{{ order.created_at|date:"M d, Y" }}</td>
+                                <td><strong class="text-danger">${{ order.total_cost|floatformat:2 }}</strong></td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="4" class="text-center py-3 text-muted">No transactions yet</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

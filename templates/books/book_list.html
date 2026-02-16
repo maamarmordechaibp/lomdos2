@@ -1,0 +1,279 @@
+{% extends 'base.html' %}
+
+{% block page_title %}Books{% endblock %}
+
+{% block page_actions %}
+<button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addBookModal">
+    <i class="bi bi-plus-lg"></i> Add Book
+</button>
+{% endblock %}
+
+{% block content %}
+<!-- Stats -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="stat-card">
+            <div class="stat-icon" style="background: rgba(79, 70, 229, 0.1); color: var(--primary);">
+                <i class="bi bi-journal-bookmark-fill"></i>
+            </div>
+            <div class="stat-value">{{ books.count }}</div>
+            <div class="stat-label">Total Books</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="stat-card">
+            <div class="stat-icon" style="background: rgba(16, 185, 129, 0.1); color: var(--success);">
+                <i class="bi bi-check-circle-fill"></i>
+            </div>
+            <div class="stat-value">{{ in_stock_count|default:0 }}</div>
+            <div class="stat-label">In Stock</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="stat-card">
+            <div class="stat-icon" style="background: rgba(245, 158, 11, 0.1); color: var(--warning);">
+                <i class="bi bi-exclamation-triangle-fill"></i>
+            </div>
+            <div class="stat-value">{{ low_stock_count|default:0 }}</div>
+            <div class="stat-label">Low Stock</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="stat-card">
+            <div class="stat-icon" style="background: rgba(239, 68, 68, 0.1); color: var(--danger);">
+                <i class="bi bi-x-circle-fill"></i>
+            </div>
+            <div class="stat-value">{{ out_of_stock_count|default:0 }}</div>
+            <div class="stat-label">Out of Stock</div>
+        </div>
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="card mb-4">
+    <div class="card-body py-3">
+        <form method="get" class="row g-3 align-items-end">
+            <div class="col-md-4">
+                <label class="form-label small text-secondary">Search</label>
+                <input type="text" name="search" class="form-control" placeholder="Title, ISBN, author..." value="{{ request.GET.search }}">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small text-secondary">Stock Status</label>
+                <select name="stock" class="form-select">
+                    <option value="">All Stock</option>
+                    <option value="in_stock" {% if request.GET.stock == 'in_stock' %}selected{% endif %}>In Stock</option>
+                    <option value="low_stock" {% if request.GET.stock == 'low_stock' %}selected{% endif %}>Low Stock</option>
+                    <option value="out_of_stock" {% if request.GET.stock == 'out_of_stock' %}selected{% endif %}>Out of Stock</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small text-secondary">Category</label>
+                <select name="category" class="form-select">
+                    <option value="">All Categories</option>
+                    {% for category in categories %}
+                    <option value="{{ category.id }}" {% if request.GET.category == category.id|stringformat:"s" %}selected{% endif %}>{{ category }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-primary w-100">
+                    <i class="bi bi-search"></i> Filter
+                </button>
+            </div>
+            <div class="col-md-2">
+                <a href="{% url 'books:book_list' %}" class="btn btn-outline-secondary w-100">
+                    <i class="bi bi-x-lg"></i> Clear
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Books Table -->
+<div class="card">
+    <div class="table-responsive">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Book</th>
+                    <th>ISBN</th>
+                    <th>Category</th>
+                    <th>Stock</th>
+                    <th>Cost</th>
+                    <th>Price</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for book in books %}
+                <tr>
+                    <td>
+                        <div class="d-flex align-items-center gap-3">
+                            <div style="width: 40px; height: 50px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 4px; display: flex; align-items: center; justify-content: center; color: white;">
+                                <i class="bi bi-book"></i>
+                            </div>
+                            <div>
+                                <div class="fw-semibold">{{ book }}</div>
+                                {% if book.notes and 'pending' in book.notes.lower %}
+                                <span class="badge" style="background: rgba(245, 158, 11, 0.1); color: #d97706; font-size: 0.7rem;">Pending Order</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </td>
+                    <td>
+                        <code class="text-secondary">{{ book.isbn }}</code>
+                    </td>
+                    <td>
+                        {% if book.category %}
+                        <span class="badge bg-light text-dark">{{ book.category }}</span>
+                        {% else %}
+                        <span class="text-secondary">—</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if book.stock_quantity > 5 %}
+                        <span class="badge" style="background: rgba(16, 185, 129, 0.1); color: #059669;">
+                            {{ book.stock_quantity }} in stock
+                        </span>
+                        {% elif book.stock_quantity > 0 %}
+                        <span class="badge" style="background: rgba(245, 158, 11, 0.1); color: #d97706;">
+                            {{ book.stock_quantity }} low
+                        </span>
+                        {% else %}
+                        <span class="badge" style="background: rgba(239, 68, 68, 0.1); color: #dc2626;">
+                            Out of stock
+                        </span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if book.current_cost %}
+                        <span class="text-secondary">${{ book.current_cost|floatformat:2 }}</span>
+                        {% else %}
+                        <span class="text-secondary">—</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if book.current_price %}
+                        <span class="fw-bold">${{ book.current_price|floatformat:2 }}</span>
+                        {% else %}
+                        <span class="text-secondary">TBD</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <div class="dropdown">
+                            <button class="btn btn-sm btn-light" data-bs-toggle="dropdown">
+                                <i class="bi bi-three-dots-vertical"></i>
+                            </button>
+                            <ul class="dropdown-menu dropdown-menu-end">
+                                <li>
+                                    <a class="dropdown-item" href="{% url 'books:book_detail' book.pk %}">
+                                        <i class="bi bi-eye me-2"></i> View Details
+                                    </a>
+                                </li>
+                                <li>
+                                    <a class="dropdown-item" href="{% url 'admin:books_book_change' book.pk %}">
+                                        <i class="bi bi-pencil me-2"></i> Edit
+                                    </a>
+                                </li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li>
+                                    <a class="dropdown-item text-danger" href="#">
+                                        <i class="bi bi-trash me-2"></i> Delete
+                                    </a>
+                                </li>
+                            </ul>
+                        </div>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="7">
+                        <div class="empty-state">
+                            <i class="bi bi-journal-x"></i>
+                            <h5>No books found</h5>
+                            <p class="text-secondary">Add your first book to get started</p>
+                            <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addBookModal">
+                                <i class="bi bi-plus-lg"></i> Add Book
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Add Book Modal -->
+<div class="modal fade" id="addBookModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-book-fill text-success"></i> New Book</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="post" action="{% url 'books:create_ajax' %}" id="addBookForm">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">ISBN</label>
+                        <input type="text" name="isbn" class="form-control" placeholder="Leave empty to auto-generate">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Title (English) *</label>
+                        <input type="text" name="title_en" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Title (Hebrew)</label>
+                        <input type="text" name="title_he" class="form-control">
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Selling Price</label>
+                            <div class="input-group">
+                                <span class="input-group-text">$</span>
+                                <input type="number" name="price" class="form-control" step="0.01">
+                            </div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Cost Price</label>
+                            <div class="input-group">
+                                <span class="input-group-text">$</span>
+                                <input type="number" name="cost" class="form-control" step="0.01">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-success">
+                        <i class="bi bi-check-lg"></i> Save Book
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{% block extra_js %}
+<script>
+document.getElementById('addBookForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    const formData = new FormData(this);
+    
+    fetch(this.action, {
+        method: 'POST',
+        body: formData
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            location.reload();
+        } else {
+            alert('Error: ' + data.error);
+        }
+    });
+});
+</script>
+{% endblock %}
+{% endblock %}

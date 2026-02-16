@@ -1,0 +1,740 @@
+{% load i18n static %}<!DOCTYPE html>
+{% get_current_language as LANGUAGE_CODE %}{% get_current_language_bidi as LANGUAGE_BIDI %}
+<html lang="{{ LANGUAGE_CODE|default:"en-us" }}" {% if LANGUAGE_BIDI %}dir="rtl"{% endif %}>
+<head>
+<title>{% block title %}{% endblock %} | Bookstore Admin</title>
+<link rel="stylesheet" href="{% block stylesheet %}{% static "admin/css/base.css" %}{% endblock %}">
+{% if not is_popup and is_nav_sidebar_enabled %}
+  <link rel="stylesheet" href="{% static "admin/css/nav_sidebar.css" %}">
+  <script src="{% static 'admin/js/nav_sidebar.js' %}" defer></script>
+{% endif %}
+{% block dark-mode-vars %}
+<link rel="stylesheet" href="{% static "admin/css/dark_mode.css" %}">
+{% endblock %}
+{% block extrastyle %}{% endblock %}
+{% if LANGUAGE_BIDI %}<link rel="stylesheet" href="{% block stylesheet_rtl %}{% static "admin/css/rtl.css" %}{% endblock %}">{% endif %}
+{% block extrahead %}{% endblock %}
+{% block responsive %}
+<meta name="viewport" content="user-scalable=no, width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<link rel="stylesheet" href="{% static "admin/css/responsive.css" %}">
+{% if LANGUAGE_BIDI %}<link rel="stylesheet" href="{% static "admin/css/responsive_rtl.css" %}">{% endif %}
+{% endblock %}
+{% block blockbots %}<meta name="robots" content="NONE,NOARCHIVE">{% endblock %}
+
+<style>
+/* Clean Modern Admin Theme */
+:root {
+    --primary: #4f46e5;
+    --primary-hover: #4338ca;
+    --success: #10b981;
+    --warning: #f59e0b;
+    --danger: #ef4444;
+    --gray-50: #f9fafb;
+    --gray-100: #f3f4f6;
+    --gray-200: #e5e7eb;
+    --gray-300: #d1d5db;
+    --gray-500: #6b7280;
+    --gray-700: #374151;
+    --gray-900: #111827;
+    --radius: 8px;
+    --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
+    --shadow: 0 1px 3px rgba(0,0,0,0.1), 0 1px 2px rgba(0,0,0,0.06);
+    --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.1);
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: var(--gray-100);
+    color: var(--gray-900);
+}
+
+/* Header */
+#header {
+    background: white;
+    border-bottom: 1px solid var(--gray-200);
+    padding: 0.75rem 1.5rem;
+    box-shadow: var(--shadow-sm);
+}
+
+#branding {
+    float: left;
+}
+
+#branding h1 {
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: var(--gray-900);
+    margin: 0;
+    line-height: 2.5rem;
+}
+
+#branding h1 a {
+    color: inherit;
+    text-decoration: none;
+}
+
+#branding h1::before {
+    content: "📚 ";
+}
+
+#user-tools {
+    float: right;
+    font-size: 0.875rem;
+    color: var(--gray-500);
+    line-height: 2.5rem;
+}
+
+#user-tools a {
+    color: var(--primary);
+    text-decoration: none;
+    margin-left: 1rem;
+    font-weight: 500;
+}
+
+#user-tools a:hover {
+    text-decoration: underline;
+}
+
+/* Navigation Sidebar */
+#nav-sidebar {
+    background: white;
+    border-right: 1px solid var(--gray-200);
+    width: 250px;
+}
+
+#nav-sidebar .module {
+    border: none;
+    margin: 0;
+}
+
+#nav-sidebar .module caption,
+#nav-sidebar .module th {
+    background: var(--gray-50);
+    color: var(--gray-500);
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 0.75rem 1rem;
+    border: none;
+}
+
+#nav-sidebar a {
+    color: var(--gray-700);
+    padding: 0.5rem 1rem;
+    display: block;
+    text-decoration: none;
+    font-size: 0.875rem;
+    border-left: 3px solid transparent;
+    transition: all 0.15s;
+}
+
+#nav-sidebar a:hover {
+    background: var(--gray-50);
+    color: var(--primary);
+}
+
+#nav-sidebar .current {
+    background: #eef2ff;
+    color: var(--primary);
+    border-left-color: var(--primary);
+    font-weight: 500;
+}
+
+/* Main Content */
+#content {
+    padding: 1.5rem;
+}
+
+/* Breadcrumbs */
+.breadcrumbs {
+    background: white;
+    padding: 0.75rem 1rem;
+    border-radius: var(--radius);
+    margin-bottom: 1.5rem;
+    font-size: 0.875rem;
+    color: var(--gray-500);
+    box-shadow: var(--shadow-sm);
+}
+
+.breadcrumbs a {
+    color: var(--primary);
+    text-decoration: none;
+}
+
+.breadcrumbs a:hover {
+    text-decoration: underline;
+}
+
+/* Modules/Cards */
+.module {
+    background: white;
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    margin-bottom: 1.5rem;
+    border: 1px solid var(--gray-200);
+}
+
+.module h2,
+.module caption {
+    background: var(--gray-50);
+    color: var(--gray-900);
+    font-size: 0.875rem;
+    font-weight: 600;
+    padding: 0.875rem 1rem;
+    border-bottom: 1px solid var(--gray-200);
+    margin: 0;
+}
+
+.module table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.module th,
+.module td {
+    padding: 0.75rem 1rem;
+    text-align: left;
+    border-bottom: 1px solid var(--gray-100);
+}
+
+.module tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.module tbody tr:hover {
+    background: var(--gray-50);
+}
+
+/* Buttons */
+.button,
+input[type="submit"],
+button {
+    background: var(--primary);
+    color: white;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: var(--radius);
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.button:hover,
+input[type="submit"]:hover,
+button:hover {
+    background: var(--primary-hover);
+}
+
+.button.default,
+input[type="submit"].default {
+    background: var(--success);
+}
+
+.button.default:hover,
+input[type="submit"].default:hover {
+    background: #059669;
+}
+
+.deletelink,
+.button.delete {
+    background: var(--danger);
+}
+
+.deletelink:hover,
+.button.delete:hover {
+    background: #dc2626;
+}
+
+/* Forms */
+.form-row {
+    padding: 1rem;
+    border-bottom: 1px solid var(--gray-100);
+}
+
+.form-row:last-child {
+    border-bottom: none;
+}
+
+.form-row label {
+    font-weight: 500;
+    color: var(--gray-700);
+    font-size: 0.875rem;
+}
+
+input[type="text"],
+input[type="password"],
+input[type="email"],
+input[type="url"],
+input[type="number"],
+input[type="tel"],
+textarea,
+select {
+    border: 1px solid var(--gray-300);
+    border-radius: var(--radius);
+    padding: 0.5rem 0.75rem;
+    font-size: 0.875rem;
+    width: 100%;
+    max-width: 400px;
+    transition: all 0.15s;
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+}
+
+/* Result Tables */
+#result_list {
+    background: white;
+    border-radius: var(--radius);
+    overflow: hidden;
+    box-shadow: var(--shadow);
+}
+
+#result_list thead th {
+    background: var(--gray-50);
+    color: var(--gray-700);
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--gray-200);
+}
+
+#result_list tbody td {
+    padding: 0.75rem 1rem;
+    font-size: 0.875rem;
+    border-bottom: 1px solid var(--gray-100);
+}
+
+#result_list tbody tr:hover {
+    background: var(--gray-50);
+}
+
+#result_list a {
+    color: var(--primary);
+    text-decoration: none;
+    font-weight: 500;
+}
+
+#result_list a:hover {
+    text-decoration: underline;
+}
+
+/* Action Bar */
+.actions {
+    background: white;
+    padding: 0.75rem 1rem;
+    border-radius: var(--radius);
+    margin-bottom: 1rem;
+    box-shadow: var(--shadow-sm);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.actions select {
+    padding: 0.5rem;
+    border: 1px solid var(--gray-300);
+    border-radius: var(--radius);
+    font-size: 0.875rem;
+}
+
+.actions label {
+    font-size: 0.875rem;
+    color: var(--gray-600);
+}
+
+/* Filters */
+#changelist-filter {
+    background: white;
+    border-radius: var(--radius);
+    padding: 1rem;
+    box-shadow: var(--shadow);
+    border: 1px solid var(--gray-200);
+}
+
+#changelist-filter h2 {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--gray-900);
+    margin: 0 0 1rem 0;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid var(--gray-200);
+}
+
+#changelist-filter h3 {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--gray-500);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin: 1rem 0 0.5rem;
+}
+
+#changelist-filter ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+#changelist-filter li {
+    margin: 0;
+}
+
+#changelist-filter a {
+    display: block;
+    padding: 0.375rem 0.5rem;
+    color: var(--gray-600);
+    text-decoration: none;
+    font-size: 0.875rem;
+    border-radius: 4px;
+}
+
+#changelist-filter a:hover {
+    background: var(--gray-100);
+    color: var(--gray-900);
+}
+
+#changelist-filter li.selected a {
+    background: #eef2ff;
+    color: var(--primary);
+    font-weight: 500;
+}
+
+/* Messages */
+.messagelist {
+    padding: 0;
+    margin: 0 0 1.5rem;
+    list-style: none;
+}
+
+.messagelist li {
+    padding: 0.75rem 1rem;
+    border-radius: var(--radius);
+    margin-bottom: 0.5rem;
+    font-size: 0.875rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.messagelist .success {
+    background: #ecfdf5;
+    color: #065f46;
+    border: 1px solid #a7f3d0;
+}
+
+.messagelist .success::before {
+    content: "✓";
+    font-weight: bold;
+}
+
+.messagelist .warning {
+    background: #fffbeb;
+    color: #92400e;
+    border: 1px solid #fcd34d;
+}
+
+.messagelist .warning::before {
+    content: "⚠";
+}
+
+.messagelist .error {
+    background: #fef2f2;
+    color: #991b1b;
+    border: 1px solid #fca5a5;
+}
+
+.messagelist .error::before {
+    content: "✕";
+    font-weight: bold;
+}
+
+/* Submit Row */
+.submit-row {
+    background: var(--gray-50);
+    padding: 1rem;
+    border-top: 1px solid var(--gray-200);
+    border-radius: 0 0 var(--radius) var(--radius);
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.submit-row input {
+    margin: 0;
+}
+
+/* Fieldsets */
+fieldset {
+    border: 1px solid var(--gray-200);
+    border-radius: var(--radius);
+    margin-bottom: 1rem;
+    background: white;
+}
+
+fieldset h2 {
+    background: var(--gray-50);
+    margin: 0;
+    padding: 0.75rem 1rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    border-bottom: 1px solid var(--gray-200);
+}
+
+fieldset .description {
+    color: var(--gray-500);
+    font-size: 0.8125rem;
+    padding: 0.75rem 1rem;
+    background: var(--gray-50);
+    border-bottom: 1px solid var(--gray-200);
+}
+
+/* Help Text */
+.help {
+    font-size: 0.8125rem;
+    color: var(--gray-500);
+    margin-top: 0.25rem;
+}
+
+/* Inline Related */
+.inline-group {
+    background: white;
+    border: 1px solid var(--gray-200);
+    border-radius: var(--radius);
+    margin-bottom: 1.5rem;
+}
+
+.inline-group h2 {
+    background: var(--gray-50);
+    padding: 0.75rem 1rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    margin: 0;
+    border-bottom: 1px solid var(--gray-200);
+}
+
+.inline-related {
+    border-bottom: 1px solid var(--gray-100);
+    padding: 1rem;
+}
+
+.inline-related:last-child {
+    border-bottom: none;
+}
+
+/* Pagination */
+.paginator {
+    background: white;
+    padding: 0.75rem 1rem;
+    border-radius: var(--radius);
+    margin-top: 1rem;
+    box-shadow: var(--shadow-sm);
+    font-size: 0.875rem;
+    color: var(--gray-600);
+}
+
+.paginator a {
+    color: var(--primary);
+    text-decoration: none;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+}
+
+.paginator a:hover {
+    background: var(--gray-100);
+}
+
+/* Object Tools */
+.object-tools {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 1rem;
+    display: flex;
+    gap: 0.5rem;
+}
+
+.object-tools li {
+    margin: 0;
+}
+
+.object-tools a {
+    display: inline-block;
+    padding: 0.5rem 1rem;
+    background: white;
+    border: 1px solid var(--gray-300);
+    border-radius: var(--radius);
+    color: var(--gray-700);
+    text-decoration: none;
+    font-size: 0.875rem;
+    font-weight: 500;
+    transition: all 0.15s;
+}
+
+.object-tools a:hover {
+    background: var(--gray-50);
+    border-color: var(--gray-400);
+}
+
+.object-tools .addlink {
+    background: var(--primary);
+    border-color: var(--primary);
+    color: white;
+}
+
+.object-tools .addlink:hover {
+    background: var(--primary-hover);
+}
+
+/* Related Widget Wrapper */
+.related-widget-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.related-widget-wrapper select {
+    flex: 1;
+}
+
+/* Login Page */
+body.login {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+body.login #container {
+    background: white;
+    border-radius: 12px;
+    box-shadow: var(--shadow-lg);
+    padding: 2rem;
+    max-width: 400px;
+    margin: 5rem auto;
+}
+
+body.login #header {
+    background: transparent;
+    border: none;
+    text-align: center;
+    padding: 0 0 1.5rem;
+}
+
+body.login #branding h1 {
+    font-size: 1.5rem;
+}
+
+/* Error Lists */
+.errorlist {
+    list-style: none;
+    padding: 0;
+    margin: 0.5rem 0;
+}
+
+.errorlist li {
+    color: var(--danger);
+    font-size: 0.8125rem;
+}
+
+/* Checkbox/Radio */
+input[type="checkbox"],
+input[type="radio"] {
+    width: auto;
+    margin-right: 0.5rem;
+}
+
+/* Action Icons */
+.addlink::before {
+    content: "+ ";
+}
+
+.changelink::before {
+    content: "✎ ";
+}
+</style>
+
+</head>
+{% load i18n %}
+
+<body class="{% if is_popup %}popup {% endif %}{% block bodyclass %}{% endblock %}"
+  data-admin-utc-offset="{% now "Z" %}">
+
+<div id="container">
+
+    {% if not is_popup %}
+    <header id="header">
+        <div id="branding">
+        {% block branding %}
+            <h1 id="site-name"><a href="{% url 'admin:index' %}">{{ site_header|default:_('Django administration') }}</a></h1>
+            {% if user.is_anonymous %}
+              {% include "admin/color_theme_toggle.html" %}
+            {% endif %}
+        {% endblock %}
+        </div>
+        {% block usertools %}
+        {% if has_permission %}
+        <div id="user-tools">
+            {% block welcome-msg %}
+                {% translate 'Welcome,' %}
+                <strong>{% firstof user.get_short_name user.get_username %}</strong>
+            {% endblock %}
+            {% block userlinks %}
+                {% if site_url %}
+                    <a href="{{ site_url }}">{% translate 'View site' %}</a>
+                {% endif %}
+                {% if user.is_active and user.is_staff %}
+                    {% url 'django-admindocs-docroot' as docsroot %}
+                    {% if docsroot %}
+                        <a href="{{ docsroot }}">{% translate 'Documentation' %}</a>
+                    {% endif %}
+                {% endif %}
+                {% if user.has_usable_password %}
+                <a href="{% url 'admin:password_change' %}">{% translate 'Change password' %}</a>
+                {% endif %}
+                <a href="{% url 'admin:logout' %}">{% translate 'Log out' %}</a>
+                {% include "admin/color_theme_toggle.html" %}
+            {% endblock %}
+        </div>
+        {% endif %}
+        {% endblock %}
+    </header>
+
+    {% block nav-sidebar %}
+    {% if not is_popup and is_nav_sidebar_enabled %}
+      {% include "admin/nav_sidebar.html" %}
+    {% endif %}
+    {% endblock %}
+    {% endif %}
+
+    <main id="main">
+    {% block messages %}
+        {% if messages %}
+        <ul class="messagelist">{% for message in messages %}
+          <li{% if message.tags %} class="{{ message.tags }}"{% endif %}>{{ message|capfirst }}</li>
+        {% endfor %}</ul>
+        {% endif %}
+    {% endblock messages %}
+
+    <div id="content" class="{% block coltype %}colM{% endblock %}">
+        {% block pretitle %}{% endblock %}
+        {% block content_title %}{% if title %}<h1>{{ title }}</h1>{% endif %}{% endblock %}
+        {% block content_subtitle %}{% if subtitle %}<h2>{{ subtitle }}</h2>{% endif %}{% endblock %}
+        {% block content %}
+        {% block object-tools %}{% endblock %}
+        {{ content }}
+        {% endblock %}
+        {% block sidebar %}{% endblock %}
+        <br class="clear">
+    </div>
+
+    {% block footer %}<footer id="footer"></footer>{% endblock %}
+    </main>
+</div>
+
+</body>
+</html>

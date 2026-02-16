@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+
+{% block page_title %}Record Payment - Order #{{ order.order_number }}{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="bi bi-cash-coin"></i> Record Payment</h5>
+            </div>
+            <div class="card-body">
+                <!-- Order Summary -->
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <h6>Order #{{ order.order_number }}</h6>
+                        <p class="mb-1"><strong>Customer:</strong> {{ order.customer }}</p>
+                        <p class="mb-1"><strong>Order Date:</strong> {{ order.order_date|date:"M d, Y" }}</p>
+                    </div>
+                    <div class="col-md-6 text-end">
+                        <h3 class="text-primary">${{ order.total|floatformat:2 }}</h3>
+                        <p class="mb-0">
+                            <span class="badge bg-{% if order.payment_status == 'paid' %}success{% elif order.payment_status == 'unpaid' %}danger{% else %}warning{% endif %}">
+                                {{ order.get_payment_status_display }}
+                            </span>
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Payment Status -->
+                <div class="alert alert-info">
+                    <div class="row">
+                        <div class="col-md-4">
+                            <strong>Total Amount:</strong><br>
+                            ${{ order.total|floatformat:2 }}
+                        </div>
+                        <div class="col-md-4">
+                            <strong>Paid:</strong><br>
+                            ${{ order.amount_paid|floatformat:2 }}
+                        </div>
+                        <div class="col-md-4">
+                            <strong>Balance Due:</strong><br>
+                            <span class="text-danger fs-5">${{ order.get_balance_due|floatformat:2 }}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Payment Form -->
+                <form method="post">
+                    {% csrf_token %}
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Payment Amount *</label>
+                            <div class="input-group">
+                                <span class="input-group-text">$</span>
+                                <input type="number" name="amount" class="form-control" step="0.01" min="0.01" 
+                                       value="{{ order.get_balance_due }}" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Payment Method *</label>
+                            <select name="method" class="form-select" required>
+                                <option value="">Select...</option>
+                                <option value="Cash">Cash</option>
+                                <option value="Credit Card">Credit Card</option>
+                                <option value="Debit Card">Debit Card</option>
+                                <option value="Bank Transfer">Bank Transfer</option>
+                                <option value="Check">Check</option>
+                                <option value="Mobile Payment">Mobile Payment</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Mark as Deposit</label>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="is_deposit" id="is_deposit">
+                            <label class="form-check-label" for="is_deposit">
+                                This is a deposit/advance payment
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Notes</label>
+                        <textarea name="notes" class="form-control" rows="3" 
+                                  placeholder="Add any notes about this payment..."></textarea>
+                    </div>
+
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-check-circle"></i> Record Payment
+                        </button>
+                        <a href="{% url 'orders:order_detail' order.pk %}" class="btn btn-secondary">
+                            Cancel
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <!-- Payment History -->
+        <div class="card">
+            <div class="card-header">
+                <h6><i class="bi bi-clock-history"></i> Payment History</h6>
+            </div>
+            <div class="card-body">
+                {% if order.payment_notes %}
+                <div style="font-size: 0.875rem; white-space: pre-line;">{{ order.payment_notes }}</div>
+                {% else %}
+                <p class="text-muted">No payments recorded yet</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Order Items -->
+        <div class="card mt-3">
+            <div class="card-header">
+                <h6><i class="bi bi-list-ul"></i> Order Items</h6>
+            </div>
+            <div class="card-body p-0">
+                <div class="list-group list-group-flush">
+                    {% for item in order.items.all %}
+                    <div class="list-group-item">
+                        <div class="d-flex justify-content-between">
+                            <div>
+                                <strong>{{ item.book }}</strong><br>
+                                <small class="text-muted">Qty: {{ item.quantity }}</small>
+                            </div>
+                            <div class="text-end">
+                                ${{ item.unit_price|floatformat:2 }}<br>
+                                <small class="text-muted">${{ item.subtotal|floatformat:2 }}</small>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

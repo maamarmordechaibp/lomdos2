@@ -1,0 +1,774 @@
+{% extends 'base.html' %}
+
+{% block page_title %}New Order{% endblock %}
+
+{% block page_actions %}
+<a href="{% url 'orders:order_list' %}" class="btn btn-outline-secondary">
+    <i class="bi bi-arrow-left"></i> Back to Orders
+</a>
+{% endblock %}
+
+{% block extra_css %}
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<style>
+    .select2-container--default .select2-selection--single {
+        height: 42px;
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        padding: 6px 12px;
+    }
+    .select2-container--default .select2-selection--single .select2-selection__arrow {
+        height: 40px;
+    }
+    .select2-dropdown {
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+    }
+    .select2-results__option--highlighted {
+        background: var(--primary) !important;
+    }
+    .order-item-card {
+        background: #f8fafc;
+        border: 1px solid var(--border-color);
+        border-radius: 10px;
+        padding: 1.25rem;
+        margin-bottom: 1rem;
+        position: relative;
+    }
+    .order-item-card:hover {
+        border-color: var(--primary);
+    }
+    .item-number {
+        position: absolute;
+        top: -10px;
+        left: 15px;
+        background: var(--primary);
+        color: white;
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+    .remove-item-btn {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        background: transparent;
+        border: none;
+        color: var(--danger);
+        cursor: pointer;
+        padding: 5px;
+        border-radius: 6px;
+        transition: all 0.2s;
+    }
+    .remove-item-btn:hover {
+        background: #fef2f2;
+    }
+    .summary-card {
+        position: sticky;
+        top: 100px;
+    }
+    .summary-row {
+        display: flex;
+        justify-content: space-between;
+        padding: 0.75rem 0;
+        border-bottom: 1px solid var(--border-color);
+    }
+    .summary-row:last-child {
+        border-bottom: none;
+    }
+    .summary-total {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: var(--primary);
+    }
+    .create-new-option {
+        background: #dcfce7 !important;
+        color: #166534 !important;
+        font-weight: 600 !important;
+    }
+    .btn-add-new {
+        background: var(--success);
+        color: white;
+        border: none;
+        width: 42px;
+        height: 42px;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s;
+    }
+    .btn-add-new:hover {
+        background: #059669;
+        transform: scale(1.05);
+    }
+    .payment-status-display {
+        background: #f1f5f9;
+        border: 1px solid var(--border-color);
+        min-height: 42px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .payment-status-display .badge {
+        font-size: 0.875rem;
+        padding: 0.5em 1em;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<form method="post" id="orderForm">
+    {% csrf_token %}
+    
+    <div class="row">
+        <!-- Main Form -->
+        <div class="col-lg-8">
+            <!-- Customer Section -->
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="bi bi-person-fill text-primary"></i> Customer</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row align-items-end">
+                        <div class="col">
+                            <label class="form-label">Select Customer *</label>
+                            <select name="customer" id="customerSelect" class="form-select" required>
+                                <option value="">Choose a customer...</option>
+                                {% for customer in customers %}
+                                <option value="{{ customer.id }}">{{ customer }} {% if customer.phone %}- {{ customer.phone }}{% endif %}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-auto">
+                            <button type="button" class="btn-add-new" onclick="openModal('customerModal')" title="Add New Customer">
+                                <i class="bi bi-plus-lg"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Order Items Section -->
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="bi bi-cart-fill text-primary"></i> Order Items</h5>
+                    <button type="button" class="btn btn-primary btn-sm" onclick="addItem()">
+                        <i class="bi bi-plus-lg"></i> Add Book
+                    </button>
+                </div>
+                <div class="card-body" id="itemsContainer">
+                    <div class="empty-state" id="emptyState">
+                        <i class="bi bi-cart-x"></i>
+                        <p>No items yet. Click "Add Book" to get started.</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Payment Section -->
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="bi bi-credit-card-fill text-success"></i> Payment</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label class="form-label">Amount Received</label>
+                            <div class="input-group">
+                                <span class="input-group-text">$</span>
+                                <input type="number" name="amount_paid" id="amountPaid" class="form-control" value="0" step="0.01" min="0" onchange="updatePaymentSummary()">
+                            </div>
+                            <small class="text-muted">Enter any amount received (deposit, partial, or full)</small>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Payment Method</label>
+                            <select name="payment_method" class="form-select">
+                                <option value="">Select method...</option>
+                                <option value="Cash">Cash</option>
+                                <option value="Credit Card">Credit Card</option>
+                                <option value="Debit Card">Debit Card</option>
+                                <option value="Bank Transfer">Bank Transfer</option>
+                                <option value="Check">Check</option>
+                                <option value="Other">Other</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Payment Status</label>
+                            <div class="payment-status-display p-2 rounded text-center" id="paymentStatusDisplay">
+                                <span class="badge bg-secondary">No Payment</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Notes Section -->
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="bi bi-chat-left-text-fill text-primary"></i> Notes</h5>
+                </div>
+                <div class="card-body">
+                    <textarea name="notes" class="form-control" rows="3" placeholder="Add any notes about this order..."></textarea>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Summary Sidebar -->
+        <div class="col-lg-4">
+            <div class="card summary-card">
+                <div class="card-header">
+                    <h5><i class="bi bi-receipt text-primary"></i> Order Summary</h5>
+                </div>
+                <div class="card-body">
+                    <div class="summary-row">
+                        <span class="text-secondary">Items</span>
+                        <span class="fw-semibold" id="summaryItems">0</span>
+                    </div>
+                    <div class="summary-row">
+                        <span class="text-secondary">Quantity</span>
+                        <span class="fw-semibold" id="summaryQty">0</span>
+                    </div>
+                    <div class="summary-row">
+                        <span class="text-secondary">Subtotal</span>
+                        <span class="fw-semibold" id="summarySubtotal">$0.00</span>
+                    </div>
+                    <div class="summary-row pt-3">
+                        <span class="fw-semibold">Total</span>
+                        <span class="summary-total" id="summaryTotal">$0.00</span>
+                    </div>
+                    
+                    <div class="summary-row bg-success bg-opacity-10 p-2 rounded mt-2">
+                        <span class="text-success fw-semibold">Amount Paid</span>
+                        <span class="fw-bold text-success" id="summaryPaid">$0.00</span>
+                    </div>
+                    <div class="summary-row">
+                        <span class="text-secondary">Balance Due</span>
+                        <span class="fw-bold" id="summaryBalance">$0.00</span>
+                    </div>
+                    
+                    <hr>
+                    
+                    <button type="submit" class="btn btn-success btn-lg w-100 mb-2" id="submitBtn" disabled>
+                        <i class="bi bi-check-circle-fill"></i> Create Order
+                    </button>
+                    <a href="{% url 'orders:order_list' %}" class="btn btn-outline-secondary w-100">
+                        Cancel
+                    </a>
+                    
+                    <div class="alert alert-warning mt-3 small" id="validationMsg">
+                        <i class="bi bi-exclamation-triangle-fill"></i> 
+                        Select a customer and add at least one item
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</form>
+
+<!-- Customer Modal -->
+<div class="modal fade" id="customerModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-person-plus-fill text-primary"></i> New Customer</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">First Name *</label>
+                        <input type="text" id="custFirstName" class="form-control" placeholder="John">
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">Last Name *</label>
+                        <input type="text" id="custLastName" class="form-control" placeholder="Doe">
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Phone *</label>
+                    <input type="tel" id="custPhone" class="form-control" placeholder="+1 234 567 8900">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Email</label>
+                    <input type="email" id="custEmail" class="form-control" placeholder="john@example.com">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="saveCustomer()">
+                    <i class="bi bi-check-lg"></i> Save Customer
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Book Modal -->
+<div class="modal fade" id="bookModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-book-fill text-success"></i> New Book (ספר לימוד חדש)</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label">ISBN</label>
+                            <input type="text" id="bookIsbn" class="form-control" placeholder="978-3-16-148410-0">
+                            <small class="text-muted">Leave empty to auto-generate</small>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Title *</label>
+                            <input type="text" id="bookTitle" class="form-control" placeholder="Book title">
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label">Supplier</label>
+                            <div class="d-flex gap-2">
+                                <select id="bookSupplier" class="form-select">
+                                    <option value="">Select supplier...</option>
+                                    {% for supplier in suppliers %}
+                                    <option value="{{ supplier.id }}">{{ supplier }}</option>
+                                    {% endfor %}
+                                </select>
+                                <button type="button" class="btn btn-outline-primary btn-sm" onclick="openModal('supplierModal')" title="Add New Supplier">
+                                    <i class="bi bi-plus-lg"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Supplier Cost</label>
+                            <div class="input-group">
+                                <span class="input-group-text">₪</span>
+                                <input type="number" id="bookCost" class="form-control" step="0.01" placeholder="0.00" onchange="calculateBookPrice()">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="row">
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">Margin Type</label>
+                        <select id="bookMarginType" class="form-select" onchange="calculateBookPrice()">
+                            <option value="percentage">Percentage (%)</option>
+                            <option value="flat">Flat Amount (₪)</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">Margin Value</label>
+                        <input type="number" id="bookMarginValue" class="form-control" value="10" step="0.01" onchange="calculateBookPrice()">
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">Selling Price (calculated)</label>
+                        <div class="input-group">
+                            <span class="input-group-text">₪</span>
+                            <input type="number" id="bookPrice" class="form-control" step="0.01" placeholder="0.00">
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="alert alert-info small">
+                    <i class="bi bi-info-circle"></i> 
+                    If supplier is selected, the cost and margin will be saved as defaults for this book.
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-success" onclick="saveBook()">
+                    <i class="bi bi-check-lg"></i> Save Book
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Supplier Modal -->
+<div class="modal fade" id="supplierModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-building text-primary"></i> New Supplier</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">Supplier Name *</label>
+                    <input type="text" id="supplierName" class="form-control" placeholder="Supplier name">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Email *</label>
+                    <input type="email" id="supplierEmail" class="form-control" placeholder="supplier@email.com">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Phone</label>
+                    <input type="tel" id="supplierPhone" class="form-control" placeholder="+972 XX XXX XXXX">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="saveSupplier()">
+                    <i class="bi bi-check-lg"></i> Save Supplier
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
+<script>
+const csrfToken = '{{ csrf_token }}';
+let itemIndex = 0;
+let currentItemIndex = null;
+
+// Initialize
+$(document).ready(function() {
+    initSelect2('#customerSelect', 'Select a customer...');
+});
+
+function initSelect2(selector, placeholder) {
+    $(selector).select2({
+        placeholder: placeholder,
+        allowClear: true,
+        width: '100%'
+    });
+}
+
+function initBookSelect2(selector, index) {
+    $(selector).select2({
+        placeholder: 'Search for a book...',
+        allowClear: true,
+        width: '100%',
+        tags: true,
+        createTag: function(params) {
+            const term = $.trim(params.term);
+            if (term === '') return null;
+            return {
+                id: 'NEW:' + term,
+                text: '+ Create: "' + term + '"',
+                newTag: true
+            };
+        },
+        templateResult: function(data) {
+            if (data.newTag) {
+                return $('<div class="create-new-option p-2"><i class="bi bi-plus-circle-fill me-2"></i>' + data.text + '</div>');
+            }
+            return data.text;
+        }
+    }).on('select2:select', function(e) {
+        const data = e.params.data;
+        if (data.newTag || (data.id && data.id.toString().startsWith('NEW:'))) {
+            const term = data.id.toString().replace('NEW:', '');
+            $(this).val(null).trigger('change');
+            currentItemIndex = index;
+            $('#bookTitle').val(term);
+            openModal('bookModal');
+        } else {
+            // Set price from selected option
+            const price = $(this).find(':selected').data('price') || 0;
+            $(`#price_${index}`).val(price);
+            updateTotals();
+        }
+    });
+}
+
+function openModal(modalId) {
+    new bootstrap.Modal(document.getElementById(modalId)).show();
+}
+
+function closeModal(modalId) {
+    bootstrap.Modal.getInstance(document.getElementById(modalId)).hide();
+}
+
+function addItem() {
+    itemIndex++;
+    const idx = itemIndex;
+    
+    $('#emptyState').hide();
+    
+    const html = `
+    <div class="order-item-card" id="item_${idx}">
+        <span class="item-number">${idx}</span>
+        <button type="button" class="remove-item-btn" onclick="removeItem(${idx})">
+            <i class="bi bi-x-lg"></i>
+        </button>
+        
+        <div class="row g-3">
+            <div class="col-md-5">
+                <label class="form-label">Book *</label>
+                <div class="d-flex gap-2">
+                    <select name="book_id[]" id="book_${idx}" class="form-select" required style="flex:1">
+                        <option value=""></option>
+                        {% for book in books %}
+                        <option value="{{ book.id }}" data-price="{{ book.current_price|default:0 }}">{{ book }} - {{ book.isbn }}</option>
+                        {% endfor %}
+                    </select>
+                    <button type="button" class="btn-add-new" onclick="currentItemIndex=${idx}; openModal('bookModal')" title="Add New Book">
+                        <i class="bi bi-plus-lg"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Qty *</label>
+                <input type="number" name="quantity[]" id="qty_${idx}" class="form-control" value="1" min="1" onchange="updateTotals()">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Price</label>
+                <input type="number" name="price[]" id="price_${idx}" class="form-control" value="0" step="0.01" min="0" onchange="updateTotals()">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Supplier</label>
+                <select name="supplier_id[]" class="form-select">
+                    <option value="">None</option>
+                    {% for supplier in suppliers %}
+                    <option value="{{ supplier.id }}">{{ supplier }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+        
+        <div class="text-end mt-3 pt-2 border-top">
+            <span class="text-secondary">Subtotal:</span>
+            <span class="fw-bold text-primary ms-2" id="subtotal_${idx}">$0.00</span>
+        </div>
+    </div>`;
+    
+    $('#itemsContainer').append(html);
+    initBookSelect2(`#book_${idx}`, idx);
+    updateTotals();
+}
+
+function removeItem(idx) {
+    $(`#item_${idx}`).fadeOut(200, function() {
+        $(this).remove();
+        updateTotals();
+        if ($('.order-item-card').length === 0) {
+            $('#emptyState').show();
+        }
+    });
+}
+
+function updateTotals() {
+    let totalItems = 0;
+    let totalQty = 0;
+    let totalAmount = 0;
+    
+    $('.order-item-card').each(function() {
+        const idx = $(this).attr('id').replace('item_', '');
+        const qty = parseFloat($(`#qty_${idx}`).val()) || 0;
+        const price = parseFloat($(`#price_${idx}`).val()) || 0;
+        const subtotal = qty * price;
+        
+        $(`#subtotal_${idx}`).text('$' + subtotal.toFixed(2));
+        
+        totalItems++;
+        totalQty += qty;
+        totalAmount += subtotal;
+    });
+    
+    $('#summaryItems').text(totalItems);
+    $('#summaryQty').text(totalQty);
+    $('#summarySubtotal').text('$' + totalAmount.toFixed(2));
+    $('#summaryTotal').text('$' + totalAmount.toFixed(2));
+    
+    updatePaymentSummary();
+    validateForm();
+}
+
+function updatePaymentSummary() {
+    const total = parseFloat($('#summaryTotal').text().replace('$', '')) || 0;
+    const paid = parseFloat($('#amountPaid').val()) || 0;
+    const balance = Math.max(total - paid, 0);
+    
+    $('#summaryPaid').text('$' + paid.toFixed(2));
+    $('#summaryBalance').text('$' + balance.toFixed(2));
+    
+    // Update balance color
+    if (balance > 0) {
+        $('#summaryBalance').removeClass('text-success').addClass('text-danger');
+    } else {
+        $('#summaryBalance').removeClass('text-danger').addClass('text-success');
+    }
+    
+    // Update payment status display
+    let statusBadge = '';
+    if (paid === 0) {
+        statusBadge = '<span class="badge bg-secondary">No Payment</span>';
+    } else if (total === 0 && paid > 0) {
+        statusBadge = '<span class="badge bg-info">Deposit Recorded</span>';
+    } else if (paid >= total && total > 0) {
+        statusBadge = '<span class="badge bg-success">Fully Paid</span>';
+    } else if (paid > 0) {
+        statusBadge = '<span class="badge bg-warning">Partial Payment</span>';
+    }
+    $('#paymentStatusDisplay').html(statusBadge);
+}
+
+function validateForm() {
+    const hasCustomer = $('#customerSelect').val() !== '';
+    const hasItems = $('.order-item-card').length > 0;
+    const isValid = hasCustomer && hasItems;
+    
+    $('#submitBtn').prop('disabled', !isValid);
+    $('#validationMsg').toggle(!isValid);
+}
+
+function saveCustomer() {
+    const firstName = $('#custFirstName').val().trim();
+    const lastName = $('#custLastName').val().trim();
+    const phone = $('#custPhone').val().trim();
+    const email = $('#custEmail').val().trim();
+    
+    if (!firstName || !lastName || !phone) {
+        showError('Please fill in all required fields: First Name, Last Name, and Phone');
+        return;
+    }
+    
+    const formData = new FormData();
+    formData.append('csrfmiddlewaretoken', csrfToken);
+    formData.append('first_name_en', firstName);
+    formData.append('last_name_en', lastName);
+    formData.append('phone', phone);
+    formData.append('email', email);
+    
+    fetch('{% url "customers:create_ajax" %}', {
+        method: 'POST',
+        body: formData
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            const newOption = new Option(data.customer.name + ' - ' + data.customer.phone, data.customer.id, true, true);
+            $('#customerSelect').append(newOption).trigger('change');
+            closeModal('customerModal');
+            $('#custFirstName, #custLastName, #custPhone, #custEmail').val('');
+            validateForm();
+        } else {
+            showError('Could not create customer: ' + data.error);
+        }
+    })
+    .catch(err => showError('Network error creating customer'));
+}
+
+function saveBook() {
+    const isbn = $('#bookIsbn').val().trim();
+    const title = $('#bookTitle').val().trim();
+    const price = $('#bookPrice').val();
+    const cost = $('#bookCost').val();
+    const supplierId = $('#bookSupplier').val();
+    const marginType = $('#bookMarginType').val();
+    const marginValue = $('#bookMarginValue').val();
+    
+    if (!title) {
+        showError('Please enter a book title');
+        return;
+    }
+    
+    const formData = new FormData();
+    formData.append('csrfmiddlewaretoken', csrfToken);
+    formData.append('isbn', isbn);
+    formData.append('title_en', title);
+    formData.append('price', price || '0');
+    formData.append('cost', cost || '0');
+    formData.append('supplier_id', supplierId || '');
+    formData.append('margin_type', marginType);
+    formData.append('margin_value', marginValue || '10');
+    
+    fetch('{% url "books:create_ajax" %}', {
+        method: 'POST',
+        body: formData
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            if (currentItemIndex) {
+                const $select = $(`#book_${currentItemIndex}`);
+                const newOption = new Option(data.book.title + ' - ' + data.book.isbn, data.book.id, true, true);
+                newOption.setAttribute('data-price', data.book.price || 0);
+                newOption.setAttribute('data-supplier', data.book.supplier_id || '');
+                $select.append(newOption).trigger('change');
+                $(`#price_${currentItemIndex}`).val(data.book.price || 0);
+                // Set supplier if provided
+                if (data.book.supplier_id) {
+                    $(`select[name="supplier_id[]"]`).last().val(data.book.supplier_id);
+                }
+                updateTotals();
+            }
+            closeModal('bookModal');
+            $('#bookIsbn, #bookTitle, #bookPrice, #bookCost').val('');
+            $('#bookSupplier').val('');
+            $('#bookMarginType').val('percentage');
+            $('#bookMarginValue').val('10');
+            currentItemIndex = null;
+        } else {
+            showError('Could not create book: ' + data.error);
+        }
+    })
+    .catch(err => showError('Network error creating book'));
+}
+
+function calculateBookPrice() {
+    const cost = parseFloat($('#bookCost').val()) || 0;
+    const marginType = $('#bookMarginType').val();
+    const marginValue = parseFloat($('#bookMarginValue').val()) || 0;
+    
+    let price = cost;
+    if (marginType === 'percentage') {
+        price = cost * (1 + marginValue / 100);
+    } else {
+        price = cost + marginValue;
+    }
+    
+    $('#bookPrice').val(price.toFixed(2));
+}
+
+function saveSupplier() {
+    const name = $('#supplierName').val().trim();
+    const email = $('#supplierEmail').val().trim();
+    const phone = $('#supplierPhone').val().trim();
+    
+    if (!name || !email) {
+        showError('Please enter supplier name and email');
+        return;
+    }
+    
+    const formData = new FormData();
+    formData.append('csrfmiddlewaretoken', csrfToken);
+    formData.append('name', name);
+    formData.append('email', email);
+    formData.append('phone', phone);
+    
+    fetch('{% url "suppliers:create_ajax" %}', {
+        method: 'POST',
+        body: formData
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            const newOption = new Option(data.supplier.name, data.supplier.id, true, true);
+            $('#bookSupplier').append(newOption).trigger('change');
+            closeModal('supplierModal');
+            $('#supplierName, #supplierEmail, #supplierPhone').val('');
+        } else {
+            showError('Could not create supplier: ' + data.error);
+        }
+    })
+    .catch(err => showError('Network error creating supplier'));
+}
+
+// Listen for customer change
+$('#customerSelect').on('change', validateForm);
+</script>
+{% endblock %}

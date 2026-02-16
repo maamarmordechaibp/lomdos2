@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="he">
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body { font-family: 'Arial', sans-serif; direction: rtl; text-align: right; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background: #0891b2; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
+        .content { background: #f8fafc; padding: 20px; border: 1px solid #e2e8f0; }
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        th, td { padding: 12px; text-align: right; border-bottom: 1px solid #e2e8f0; }
+        th { background: #f1f5f9; font-weight: 600; }
+        .footer { padding: 20px; text-align: center; color: #64748b; font-size: 0.875rem; }
+        .highlight { background: #fef3c7; padding: 15px; border-radius: 8px; margin: 15px 0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>בקשה להצעת מחיר</h1>
+            <p>ספרי לימוד</p>
+        </div>
+        
+        <div class="content">
+            <p>שלום {{ supplier.name }},</p>
+            
+            <p>נבקש לקבל הצעת מחיר עבור ספרי הלימוד הבאים:</p>
+            
+            <table>
+                <thead>
+                    <tr>
+                        <th>ספר</th>
+                        <th>ISBN</th>
+                        <th>כמות נדרשת</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in items %}
+                    <tr>
+                        <td>{{ item.book }}</td>
+                        <td>{{ item.book.isbn }}</td>
+                        <td>{{ item.quantity }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            
+            <div class="highlight">
+                <strong>נא לכלול בהצעה:</strong>
+                <ul>
+                    <li>מחיר ליחידה לכל ספר</li>
+                    <li>זמן אספקה משוער</li>
+                    <li>תנאי תשלום</li>
+                </ul>
+            </div>
+            
+            <p>נודה על תשובתכם בהקדם האפשרי.</p>
+            
+            <p>תודה רבה,<br>צוות חנות הספרים</p>
+        </div>
+        
+        <div class="footer">
+            <p>הודעה זו נשלחה אוטומטית. לשאלות ניתן ליצור קשר בחזרה.</p>
+        </div>
+    </div>
+</body>
+</html>

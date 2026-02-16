@@ -1,0 +1,212 @@
+{% extends "base.html" %}
+
+{% block page_title %}Dashboard{% endblock %}
+
+{% block top_actions %}
+<a href="{% url 'orders:order_create' %}" class="btn btn-primary btn-lg">
+    <i class="bi bi-plus-circle"></i> New Order
+</a>
+{% endblock %}
+
+{% block content %}
+<!-- Statistics Cards -->
+<div class="row g-3 mb-4">
+    <div class="col-md-3">
+        <div class="stat-card" style="border-left-color: #0d6efd;">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h6 class="text-muted mb-2">Total Orders</h6>
+                    <h2 class="mb-0">{{ total_orders }}</h2>
+                    <small class="text-muted">{{ week_orders }} this week</small>
+                </div>
+                <div style="font-size: 2.5rem; opacity: 0.3;">📦</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-3">
+        <div class="stat-card" style="border-left-color: #198754;">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h6 class="text-muted mb-2">Total Revenue</h6>
+                    <h2 class="mb-0">${{ total_revenue|floatformat:2 }}</h2>
+                    <small class="text-muted">${{ week_revenue|floatformat:2 }} this week</small>
+                </div>
+                <div style="font-size: 2.5rem; opacity: 0.3;">💰</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-3">
+        <div class="stat-card" style="border-left-color: #ffc107;">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h6 class="text-muted mb-2">Pending Orders</h6>
+                    <h2 class="mb-0">{{ pending_orders }}</h2>
+                    <small class="text-muted">Needs attention</small>
+                </div>
+                <div style="font-size: 2.5rem; opacity: 0.3;">⏳</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-3">
+        <div class="stat-card" style="border-left-color: #0dcaf0;">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h6 class="text-muted mb-2">Total Customers</h6>
+                    <h2 class="mb-0">{{ total_customers }}</h2>
+                    <small class="text-muted">{{ new_customers_week }} new this week</small>
+                </div>
+                <div style="font-size: 2.5rem; opacity: 0.3;">👥</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Inventory Stats -->
+<div class="row g-3 mb-4">
+    <div class="col-md-4">
+        <div class="stat-card" style="border-left-color: #0d6efd;">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h6 class="text-muted mb-2">Books in Catalog</h6>
+                    <h2 class="mb-0">{{ total_books }}</h2>
+                </div>
+                <div style="font-size: 2.5rem; opacity: 0.3;">📚</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="stat-card" style="border-left-color: #dc3545;">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h6 class="text-muted mb-2">Low Stock Items</h6>
+                    <h2 class="mb-0">{{ low_stock_books }}</h2>
+                    <small class="text-muted">Less than 5 units</small>
+                </div>
+                <div style="font-size: 2.5rem; opacity: 0.3;">⚠️</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="stat-card" style="border-left-color: #ffc107;">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h6 class="text-muted mb-2">Pending Supplier Assignment</h6>
+                    <h2 class="mb-0">{{ pending_supplier_books }}</h2>
+                    <small class="text-muted">Books need supplier</small>
+                </div>
+                <div style="font-size: 2.5rem; opacity: 0.3;">📋</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Recent Orders and Actions -->
+<div class="row g-3">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5><i class="bi bi-cart3"></i> Recent Orders</h5>
+                <a href="{% url 'orders:order_list' %}" class="btn btn-sm btn-outline-primary">View All</a>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead>
+                            <tr>
+                                <th>Order #</th>
+                                <th>Customer</th>
+                                <th>Status</th>
+                                <th>Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for order in recent_orders %}
+                            <tr>
+                                <td>
+                                    <a href="{% url 'orders:order_detail' order.pk %}">{{ order.order_number }}</a>
+                                </td>
+                                <td>
+                                    <a href="{% url 'customers:customer_detail' order.customer.pk %}">{{ order.customer }}</a>
+                                </td>
+                                <td>
+                                    <span class="badge bg-{% if order.status == 'completed' %}success{% elif order.status == 'pending' %}warning{% else %}secondary{% endif %}">
+                                        {{ order.get_status_display }}
+                                    </span>
+                                </td>
+                                <td><strong>${{ order.total|floatformat:2 }}</strong></td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="4" class="text-center text-muted py-4">
+                                    No orders yet. <a href="{% url 'orders:order_create' %}">Create your first order</a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="bi bi-building"></i> Pending Supplier Orders</h5>
+            </div>
+            <div class="card-body">
+                {% if pending_supplier_orders %}
+                    <div class="list-group list-group-flush">
+                        {% for so in pending_supplier_orders %}
+                        <div class="list-group-item px-0 border-0">
+                            <div class="d-flex justify-content-between">
+                                <strong>{{ so.supplier }}</strong>
+                                <span class="badge bg-{% if so.status == 'sent' %}info{% else %}warning{% endif %}">
+                                    {{ so.get_status_display }}
+                                </span>
+                            </div>
+                            <small class="text-muted">{{ so.order_number }} - {{ so.created_at|date:"M d" }}</small>
+                        </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <p class="text-muted text-center py-3">✅ No pending supplier orders</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-3">
+        <div class="card border-warning">
+            <div class="card-header bg-warning bg-opacity-10">
+                <h5><i class="bi bi-exclamation-triangle text-warning"></i> Books Needing Supplier</h5>
+            </div>
+            <div class="card-body">
+                {% if books_needing_supplier %}
+                    <div class="list-group list-group-flush">
+                        {% for book in books_needing_supplier %}
+                        <div class="list-group-item px-0 border-0">
+                            <a href="{% url 'admin:books_book_change' book.pk %}" class="text-decoration-none d-block">
+                                <strong>{{ book.safe_translation_getter }}</strong>
+                                <br>
+                                <small class="text-muted">ISBN: {{ book.isbn }}</small>
+                            </a>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    <a href="{% url 'admin:books_book_changelist' %}?notes__icontains=pending" class="btn btn-sm btn-warning w-100 mt-2">
+                        <i class="bi bi-pencil"></i> Assign Suppliers
+                    </a>
+                {% else %}
+                    <p class="text-muted text-center py-3">✅ All books have suppliers</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

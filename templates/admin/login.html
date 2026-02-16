@@ -1,0 +1,187 @@
+{% extends "admin/base.html" %}
+{% load i18n static %}
+
+{% block extrastyle %}{{ block.super }}
+<style>
+    body.login {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .login #container {
+        background: white;
+        border-radius: 20px;
+        box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        padding: 3rem;
+        max-width: 450px;
+        width: 90%;
+    }
+
+    .login #header {
+        background: transparent !important;
+        box-shadow: none !important;
+        padding: 0 !important;
+        margin-bottom: 2rem;
+    }
+
+    .login #branding {
+        text-align: center;
+    }
+
+    .login #branding h1 {
+        color: #212529 !important;
+        font-size: 2rem !important;
+        margin-bottom: 0.5rem !important;
+    }
+
+    .login #branding h1:before {
+        content: "📚";
+        display: block;
+        font-size: 4rem;
+        margin-bottom: 1rem;
+    }
+
+    .login #branding h1 a {
+        color: #212529 !important;
+    }
+
+    .login #content {
+        background: transparent !important;
+        padding: 0 !important;
+    }
+
+    .login form {
+        margin-top: 2rem;
+    }
+
+    .login .form-row {
+        padding: 0 !important;
+        margin-bottom: 1.5rem !important;
+        border: none !important;
+    }
+
+    .login label {
+        display: block;
+        margin-bottom: 0.5rem;
+        color: #495057;
+        font-weight: 600;
+    }
+
+    .login input[type="text"],
+    .login input[type="password"] {
+        width: 100% !important;
+        padding: 1rem !important;
+        border: 2px solid #dee2e6 !important;
+        border-radius: 10px !important;
+        font-size: 1rem !important;
+        transition: all 0.3s !important;
+    }
+
+    .login input[type="text"]:focus,
+    .login input[type="password"]:focus {
+        border-color: #667eea !important;
+        box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25) !important;
+    }
+
+    .login .submit-row {
+        padding: 0 !important;
+        margin-top: 2rem !important;
+        border: none !important;
+        background: transparent !important;
+    }
+
+    .login input[type="submit"] {
+        width: 100% !important;
+        padding: 1rem !important;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+        border: none !important;
+        border-radius: 10px !important;
+        font-size: 1.1rem !important;
+        font-weight: 600 !important;
+        cursor: pointer !important;
+        transition: all 0.3s !important;
+    }
+
+    .login input[type="submit"]:hover {
+        transform: translateY(-2px) !important;
+        box-shadow: 0 10px 25px rgba(102, 126, 234, 0.4) !important;
+    }
+
+    .login .errornote {
+        background: #dc3545 !important;
+        color: white !important;
+        padding: 1rem !important;
+        border-radius: 10px !important;
+        margin-bottom: 1.5rem !important;
+        border: none !important;
+    }
+
+    .login .password-reset-link {
+        text-align: center;
+        margin-top: 1rem;
+    }
+
+    .login .password-reset-link a {
+        color: #667eea;
+        text-decoration: none;
+        font-weight: 500;
+    }
+
+    .login .password-reset-link a:hover {
+        text-decoration: underline;
+    }
+</style>
+{% endblock %}
+
+{% block bodyclass %}{{ block.super }} login{% endblock %}
+
+{% block usertools %}{% endblock %}
+
+{% block nav-global %}{% endblock %}
+
+{% block nav-sidebar %}{% endblock %}
+
+{% block breadcrumbs %}{% endblock %}
+
+{% block content %}
+{% if form.errors and not form.non_field_errors %}
+<p class="errornote">
+{% blocktranslate count counter=form.errors.items|length %}Please correct the error below.{% plural %}Please correct the errors below.{% endblocktranslate %}
+</p>
+{% endif %}
+
+{% if form.non_field_errors %}
+{% for error in form.non_field_errors %}
+<p class="errornote">
+    {{ error }}
+</p>
+{% endfor %}
+{% endif %}
+
+<div id="content-main">
+<form action="{{ app_path }}" method="post" id="login-form">{% csrf_token %}
+  <div class="form-row">
+    {{ form.username.errors }}
+    {{ form.username.label_tag }} {{ form.username }}
+  </div>
+  <div class="form-row">
+    {{ form.password.errors }}
+    {{ form.password.label_tag }} {{ form.password }}
+    <input type="hidden" name="next" value="{{ next }}">
+  </div>
+  {% url 'admin_password_reset' as password_reset_url %}
+  {% if password_reset_url %}
+  <div class="password-reset-link">
+    <a href="{{ password_reset_url }}">{% translate 'Forgotten your password or username?' %}</a>
+  </div>
+  {% endif %}
+  <div class="submit-row">
+    <input type="submit" value="{% translate 'Log in' %}">
+  </div>
+</form>
+
+</div>
+{% endblock %}

@@ -1,0 +1,28 @@
+בקשת הצעת מחיר
+================
+
+שלום {{ supplier.contact_person|default:supplier.name }},
+
+אנו מעוניינים לרכוש את הספר הבא ונשמח לקבל הצעת מחיר:
+
+פרטי הספר:
+-----------
+שם הספר: {{ book.title }}
+{% if book.author %}מחבר: {{ book.author }}{% endif %}
+{% if book.isbn %}ISBN: {{ book.isbn }}{% endif %}
+{% if book.publisher %}הוצאה: {{ book.publisher }}{% endif %}
+
+מידע מבוקש:
+-----------
+• מחיר יחידה
+• מחיר כמות (אם קיים)
+• זמן אספקה משוער
+• זמינות במלאי
+
+נשמח לקבל תשובתכם בהקדם האפשרי.
+תודה רבה על שיתוף הפעולה!
+
+בברכה,
+{{ store_name|default:"חנות הספרים" }}
+{% if store_phone %}טלפון: {{ store_phone }}{% endif %}
+{% if store_email %}דוא"ל: {{ store_email }}{% endif %}

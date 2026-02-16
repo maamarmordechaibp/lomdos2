@@ -1,0 +1,190 @@
+{% extends 'base.html' %}
+
+{% block page_title %}Supplier Orders{% endblock %}
+
+{% block page_actions %}
+<a href="{% url 'suppliers:pending_assignment' %}" class="btn btn-outline-secondary">
+    <i class="bi bi-exclamation-triangle"></i> Pending Assignment
+</a>
+<a href="{% url 'suppliers:pending_receiving' %}" class="btn btn-outline-primary">
+    <i class="bi bi-box-seam"></i> Pending Receiving
+</a>
+{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-4">
+        <div class="card bg-primary bg-opacity-10 border-primary">
+            <div class="card-body text-center">
+                <h3 class="text-primary mb-0">{{ total_pending }}</h3>
+                <small class="text-secondary">Items to Order</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card bg-info bg-opacity-10 border-info">
+            <div class="card-body text-center">
+                <h3 class="text-info mb-0">{{ suppliers_with_items|length }}</h3>
+                <small class="text-secondary">Suppliers</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if suppliers_with_items %}
+{% for supplier_data in suppliers_with_items %}
+<div class="card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <div>
+            <h5 class="mb-0">
+                <i class="bi bi-building text-primary"></i> 
+                {{ supplier_data.supplier }}
+            </h5>
+            <small class="text-muted">{{ supplier_data.supplier.email }}</small>
+        </div>
+        <div>
+            <span class="badge bg-secondary me-2">{{ supplier_data.total_qty }} items</span>
+            <span class="badge bg-primary me-2">₪{{ supplier_data.total_cost|floatformat:2 }}</span>
+            <button type="button" class="btn btn-success btn-sm" onclick="createOrder({{ supplier_data.supplier.id }})">
+                <i class="bi bi-plus-lg"></i> Create Order
+            </button>
+        </div>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th width="40">
+                            <input type="checkbox" class="form-check-input select-all-supplier" 
+                                   data-supplier="{{ supplier_data.supplier.id }}" 
+                                   onchange="toggleSupplierItems({{ supplier_data.supplier.id }})">
+                        </th>
+                        <th>Book</th>
+                        <th>Customer Order</th>
+                        <th>Qty</th>
+                        <th>Unit Cost</th>
+                        <th>Total</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in supplier_data.items %}
+                    <tr>
+                        <td>
+                            <input type="checkbox" class="form-check-input item-cb-{{ supplier_data.supplier.id }}" 
+                                   value="{{ item.id }}" checked>
+                        </td>
+                        <td>
+                            <strong>{{ item.book }}</strong>
+                            <br><small class="text-muted">ISBN: {{ item.book.isbn }}</small>
+                        </td>
+                        <td>
+                            <a href="{% url 'orders:order_detail' item.order.pk %}">{{ item.order.order_number }}</a>
+                            <br><small class="text-muted">{{ item.order.customer }}</small>
+                        </td>
+                        <td>{{ item.quantity }}</td>
+                        <td>₪{{ item.unit_cost|floatformat:2|default:"--" }}</td>
+                        <td>₪{{ item.get_total_cost|floatformat:2|default:"--" }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endfor %}
+{% else %}
+<div class="card">
+    <div class="card-body text-center py-5">
+        <i class="bi bi-check-circle text-success" style="font-size: 3rem;"></i>
+        <h5 class="mt-3">No Orders Pending</h5>
+        <p class="text-secondary">All items have been ordered or don't need ordering.</p>
+        <a href="{% url 'suppliers:pending_assignment' %}" class="btn btn-primary">
+            Check Pending Assignments
+        </a>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const csrfToken = '{{ csrf_token }}';
+
+function toggleSupplierItems(supplierId) {
+    const checked = document.querySelector(`.select-all-supplier[data-supplier="${supplierId}"]`).checked;
+    document.querySelectorAll(`.item-cb-${supplierId}`).forEach(cb => cb.checked = checked);
+}
+
+function createOrder(supplierId) {
+    const checkboxes = document.querySelectorAll(`.item-cb-${supplierId}:checked`);
+    const itemIds = Array.from(checkboxes).map(cb => cb.value);
+    
+    if (itemIds.length === 0) {
+        showWarning('Please select at least one item');
+        return;
+    }
+    
+    showLoading('Creating supplier order...');
+    
+    const formData = new FormData();
+    formData.append('csrfmiddlewaretoken', csrfToken);
+    formData.append('supplier_id', supplierId);
+    itemIds.forEach(id => formData.append('item_ids[]', id));
+    
+    fetch('{% url "suppliers:create_order" %}', {
+        method: 'POST',
+        body: formData
+    })
+    .then(r => r.json())
+    .then(data => {
+        hideLoading();
+        if (data.success) {
+            showSuccess(`Order ${data.order_number} created successfully!`);
+            // Ask to send email with a nice confirmation dialog
+            setTimeout(() => {
+                if (confirm(`Order ${data.order_number} created. Send email to supplier now?`)) {
+                    sendOrderEmail(data.order_id);
+                } else {
+                    location.reload();
+                }
+            }, 500);
+        } else {
+            showError('Failed to create order: ' + data.error);
+        }
+    })
+    .catch(err => {
+        hideLoading();
+        showError('Network error: ' + err.message);
+    });
+}
+
+function sendOrderEmail(orderId) {
+    showLoading('Sending email to supplier...');
+    
+    const formData = new FormData();
+    formData.append('csrfmiddlewaretoken', csrfToken);
+    formData.append('order_id', orderId);
+    
+    fetch('{% url "suppliers:send_email" %}', {
+        method: 'POST',
+        body: formData
+    })
+    .then(r => r.json())
+    .then(data => {
+        hideLoading();
+        if (data.success) {
+            showSuccess(data.message);
+            setTimeout(() => location.reload(), 1500);
+        } else {
+            showError('Failed to send email: ' + data.error);
+            setTimeout(() => location.reload(), 2000);
+        }
+    })
+    .catch(err => {
+        hideLoading();
+        showError('Network error: ' + err.message);
+    });
+}
+</script>
+{% endblock %}

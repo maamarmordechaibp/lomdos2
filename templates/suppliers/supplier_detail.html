@@ -1,0 +1,134 @@
+{% extends 'base.html' %}
+
+{% block page_title %}{{ supplier }} - Supplier Details{% endblock %}
+
+{% block top_actions %}
+<div class="btn-group">
+    <a href="{% url 'suppliers:supplier_list' %}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i> Back to Suppliers
+    </a>
+    <a href="{% url 'admin:suppliers_supplier_change' supplier.pk %}" class="btn btn-primary">
+        <i class="bi bi-pencil"></i> Edit Supplier
+    </a>
+</div>
+{% endblock %}
+
+{% block content %}
+<!-- Supplier Stats -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="stat-card" style="border-left-color: #0d6efd;">
+            <h6 class="text-muted mb-2">Total Orders</h6>
+            <h2 class="mb-0">{{ total_orders }}</h2>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="stat-card" style="border-left-color: #dc3545;">
+            <h6 class="text-muted mb-2">Total Paid</h6>
+            <h2 class="mb-0">${{ total_spent|floatformat:2 }}</h2>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="stat-card" style="border-left-color: #ffc107;">
+            <h6 class="text-muted mb-2">Pending Orders</h6>
+            <h2 class="mb-0">{{ pending_orders }}</h2>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="stat-card" style="border-left-color: #198754;">
+            <h6 class="text-muted mb-2">Completed Orders</h6>
+            <h2 class="mb-0">{{ completed_orders }}</h2>
+        </div>
+    </div>
+</div>
+
+<!-- Supplier Details -->
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="bi bi-building"></i> Supplier Information</h5>
+            </div>
+            <div class="card-body">
+                <table class="table table-borderless">
+                    <tr>
+                        <th width="30%">Name:</th>
+                        <td>{{ supplier }}</td>
+                    </tr>
+                    <tr>
+                        <th>Email:</th>
+                        <td>
+                            {% if supplier.email %}
+                            <i class="bi bi-envelope"></i> {{ supplier.email }}
+                            {% else %}
+                            <span class="text-muted">Not provided</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>Phone:</th>
+                        <td>
+                            {% if supplier.phone %}
+                            <i class="bi bi-telephone"></i> {{ supplier.phone }}
+                            {% else %}
+                            <span class="text-muted">Not provided</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>Added:</th>
+                        <td>{{ supplier.created_at|date:"F d, Y" }}</td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Order History -->
+<div class="row">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="bi bi-clock-history"></i> Order History</h5>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead>
+                            <tr>
+                                <th>Order #</th>
+                                <th>Date</th>
+                                <th>Status</th>
+                                <th>Items</th>
+                                <th>Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for order in orders %}
+                            <tr>
+                                <td><strong>{{ order.order_number }}</strong></td>
+                                <td>{{ order.created_at|date:"M d, Y H:i" }}</td>
+                                <td>
+                                    <span class="badge bg-{% if order.status == 'received' %}success{% elif order.status == 'sent' %}info{% else %}warning{% endif %}">
+                                        {{ order.get_status_display }}
+                                    </span>
+                                </td>
+                                <td>{{ order.items.count }} items</td>
+                                <td><strong>${{ order.total|floatformat:2 }}</strong></td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="5" class="text-center py-4 text-muted">
+                                    No orders yet
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

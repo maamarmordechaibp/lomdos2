@@ -1,0 +1,118 @@
+{% extends 'base.html' %}
+
+{% block page_title %}{{ book.safe_translation_getter }} - Book Details{% endblock %}
+
+{% block top_actions %}
+<div class="btn-group">
+    <a href="{% url 'books:book_list' %}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i> Back to Books
+    </a>
+    <a href="{% url 'admin:books_book_change' book.pk %}" class="btn btn-primary">
+        <i class="bi bi-pencil"></i> Edit Book
+    </a>
+</div>
+{% endblock %}
+
+{% block content %}
+<!-- Book Info -->
+<div class="row mb-4">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="bi bi-book"></i> Book Information</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <table class="table table-borderless">
+                            <tr>
+                                <th width="40%">Title (English):</th>
+                                <td>{{ book.safe_translation_getter:'title':'en' }}</td>
+                            </tr>
+                            <tr>
+                                <th>Title (Hebrew):</th>
+                                <td dir="rtl">{{ book.safe_translation_getter:'title':'he' }}</td>
+                            </tr>
+                            <tr>
+                                <th>ISBN:</th>
+                                <td><code>{{ book.isbn }}</code></td>
+                            </tr>
+                            <tr>
+                                <th>Publisher:</th>
+                                <td>{{ book.publisher|default:"Not specified" }}</td>
+                            </tr>
+                            <tr>
+                                <th>Category:</th>
+                                <td>{{ book.category|default:"Not specified" }}</td>
+                            </tr>
+                        </table>
+                    </div>
+                    <div class="col-md-6">
+                        <table class="table table-borderless">
+                            <tr>
+                                <th width="40%">Stock Status:</th>
+                                <td>
+                                    {% if book.stock_quantity > 10 %}
+                                    <span class="badge bg-success">✓ In Stock ({{ book.stock_quantity }})</span>
+                                    {% elif book.stock_quantity > 0 %}
+                                    <span class="badge bg-warning">⚠ Low Stock ({{ book.stock_quantity }})</span>
+                                    {% else %}
+                                    <span class="badge bg-danger">✗ Out of Stock</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            <tr>
+                                <th>Current Cost:</th>
+                                <td>${{ book.current_cost|default:0|floatformat:2 }}</td>
+                            </tr>
+                            <tr>
+                                <th>Current Price:</th>
+                                <td><strong>${{ book.current_price|default:0|floatformat:2 }}</strong></td>
+                            </tr>
+                            <tr>
+                                <th>Language:</th>
+                                <td>{{ book.get_language_display|default:book.language }}</td>
+                            </tr>
+                            <tr>
+                                <th>Pages:</th>
+                                <td>{{ book.pages|default:"Not specified" }}</td>
+                            </tr>
+                        </table>
+                    </div>
+                </div>
+                
+                {% if book.notes %}
+                <div class="alert alert-info mt-3">
+                    <strong>Notes:</strong> {{ book.notes }}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="bi bi-graph-up"></i> Price History</h5>
+            </div>
+            <div class="card-body">
+                {% if price_history %}
+                    <div class="list-group list-group-flush">
+                        {% for ph in price_history %}
+                        <div class="list-group-item px-0">
+                            <div class="d-flex justify-content-between">
+                                <span>{{ ph.supplier|default:"Unknown" }}</span>
+                                <strong>${{ ph.purchase_price|floatformat:2 }}</strong>
+                            </div>
+                            <small class="text-muted">{{ ph.created_at|date:"M d, Y" }}</small>
+                        </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <p class="text-muted text-center py-3">No price history yet</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,82 @@
+/* Custom CSS for Bookstore Management System */
+
+/* General */
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+/* RTL support for Hebrew */
+.rtl {
+    direction: rtl;
+    text-align: right;
+}
+
+/* Card hover effects */
+.card {
+    transition: transform 0.2s;
+}
+
+.card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+/* Loading indicator for HTMX */
+.htmx-indicator {
+    display: none;
+}
+
+.htmx-request .htmx-indicator {
+    display: inline;
+}
+
+.htmx-request.htmx-indicator {
+    display: inline;
+}
+
+/* Barcode scanner */
+.barcode-scanner {
+    border: 2px dashed #007bff;
+    padding: 20px;
+    text-align: center;
+    margin: 20px 0;
+}
+
+/* Price history table */
+.price-history-table {
+    font-size: 0.9em;
+}
+
+.price-history-table td {
+    padding: 5px;
+}
+
+/* Profit indicators */
+.profit-positive {
+    color: #28a745;
+}
+
+.profit-negative {
+    color: #dc3545;
+}
+
+/* Order status badges */
+.status-draft {
+    background-color: #6c757d;
+}
+
+.status-pending {
+    background-color: #ffc107;
+}
+
+.status-confirmed {
+    background-color: #17a2b8;
+}
+
+.status-completed {
+    background-color: #28a745;
+}
+
+.status-cancelled {
+    background-color: #dc3545;
+}

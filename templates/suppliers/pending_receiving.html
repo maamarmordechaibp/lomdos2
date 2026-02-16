@@ -1,0 +1,80 @@
+{% extends 'base.html' %}
+
+{% block page_title %}Pending Receiving{% endblock %}
+
+{% block page_actions %}
+<a href="{% url 'suppliers:supplier_orders' %}" class="btn btn-outline-secondary">
+    <i class="bi bi-cart"></i> Back to Orders
+</a>
+{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-4">
+        <div class="card bg-warning bg-opacity-10 border-warning">
+            <div class="card-body text-center">
+                <h3 class="text-warning mb-0">{{ orders|length }}</h3>
+                <small class="text-secondary">Orders Awaiting Delivery</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if orders %}
+<div class="card">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="bi bi-box-seam text-warning"></i> Orders Pending Receiving</h5>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th>Order #</th>
+                        <th>Supplier</th>
+                        <th>Items</th>
+                        <th>Total</th>
+                        <th>Sent Date</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for order in orders %}
+                    <tr>
+                        <td><strong>{{ order.order_number }}</strong></td>
+                        <td>{{ order.supplier }}</td>
+                        <td>{{ order.items.count }} books</td>
+                        <td>₪{{ order.total_cost|floatformat:2 }}</td>
+                        <td>{{ order.sent_date|date:"M d, Y"|default:"Not sent" }}</td>
+                        <td>
+                            {% if order.status == 'sent' %}
+                            <span class="badge bg-info">Sent</span>
+                            {% elif order.status == 'confirmed' %}
+                            <span class="badge bg-primary">Confirmed</span>
+                            {% else %}
+                            <span class="badge bg-secondary">{{ order.get_status_display }}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <a href="{% url 'suppliers:receive_items' order.pk %}" class="btn btn-success btn-sm">
+                                <i class="bi bi-box-arrow-in-down"></i> Receive
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% else %}
+<div class="card">
+    <div class="card-body text-center py-5">
+        <i class="bi bi-check-circle text-success" style="font-size: 3rem;"></i>
+        <h5 class="mt-3">No Pending Deliveries</h5>
+        <p class="text-secondary">All orders have been received.</p>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

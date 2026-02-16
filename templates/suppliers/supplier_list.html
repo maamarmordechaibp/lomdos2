@@ -1,0 +1,118 @@
+{% extends 'base.html' %}
+
+{% block page_title %}Suppliers{% endblock %}
+
+{% block page_actions %}
+<a href="{% url 'suppliers:pending_assignment' %}" class="btn btn-warning">
+    <i class="bi bi-exclamation-triangle"></i> Pending Assignment ({{ pending_assignment_count }})
+</a>
+<a href="{% url 'suppliers:supplier_orders' %}" class="btn btn-primary">
+    <i class="bi bi-cart-plus"></i> Order from Suppliers
+</a>
+{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-4">
+        <div class="card bg-primary bg-opacity-10 border-primary">
+            <div class="card-body text-center">
+                <h3 class="text-primary mb-0">{{ suppliers|length }}</h3>
+                <small class="text-secondary">Total Suppliers</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card bg-warning bg-opacity-10 border-warning">
+            <div class="card-body text-center">
+                <h3 class="text-warning mb-0">{{ pending_assignment_count }}</h3>
+                <small class="text-secondary">Books Pending Assignment</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <div class="row align-items-center">
+            <div class="col">
+                <h5 class="mb-0"><i class="bi bi-building text-primary"></i> All Suppliers</h5>
+            </div>
+            <div class="col-auto">
+                <form method="get" class="d-flex gap-2">
+                    <input type="text" name="search" class="form-control" placeholder="Search suppliers..." value="{{ request.GET.search }}">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-search"></i>
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Email</th>
+                        <th>Phone</th>
+                        <th>Books Supplied</th>
+                        <th>Total Orders</th>
+                        <th>Total Paid</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for supplier in suppliers %}
+                    <tr>
+                        <td><strong>{{ supplier }}</strong></td>
+                        <td>
+                            {% if supplier.email %}
+                            <a href="mailto:{{ supplier.email }}">{{ supplier.email }}</a>
+                            {% else %}
+                            <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if supplier.phone %}
+                            {{ supplier.phone }}
+                            {% else %}
+                            <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <span class="badge bg-info">{{ supplier.books_supplied }}</span>
+                        </td>
+                        <td>
+                            <span class="badge bg-primary">{{ supplier.total_orders }}</span>
+                        </td>
+                        <td>
+                            <strong>₪{{ supplier.total_spent|default:0|floatformat:2 }}</strong>
+                        </td>
+                        <td>
+                            <div class="btn-group btn-group-sm">
+                                <a href="{% url 'suppliers:supplier_detail' supplier.pk %}" class="btn btn-outline-primary" title="View Details">
+                                    <i class="bi bi-eye"></i>
+                                </a>
+                                <a href="{% url 'admin:suppliers_supplier_change' supplier.pk %}" class="btn btn-outline-secondary" title="Edit">
+                                    <i class="bi bi-pencil"></i>
+                                </a>
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="7" class="text-center py-5">
+                            <i class="bi bi-inbox" style="font-size: 3rem; color: #ccc;"></i>
+                            <p class="text-muted mt-2">No suppliers found</p>
+                            <a href="{% url 'admin:suppliers_supplier_add' %}" class="btn btn-primary">
+                                <i class="bi bi-plus-circle"></i> Add First Supplier
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

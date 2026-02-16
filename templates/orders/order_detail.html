@@ -1,0 +1,226 @@
+{% extends 'base.html' %}
+
+{% block title %}Order {{ order.order_number }} - Bookstore Management{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h2">Order {{ order.order_number }}</h1>
+            <p class="text-muted mb-0">Created on {{ order.created_at|date:"F d, Y \a\t g:i A" }}</p>
+        </div>
+        <a href="{% url 'orders:order_list' %}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Back to Orders
+        </a>
+    </div>
+
+    <div class="row">
+        <!-- Order Details -->
+        <div class="col-md-8">
+            <!-- Customer Information -->
+            <div class="card mb-4">
+                <div class="card-header bg-white">
+                    <h5 class="mb-0">Customer Information</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6>{{ order.customer }}</h6>
+                            <p class="mb-1"><strong>Phone:</strong> {{ order.customer.phone }}</p>
+                            {% if order.customer.email %}
+                            <p class="mb-1"><strong>Email:</strong> {{ order.customer.email }}</p>
+                            {% endif %}
+                            {% if order.customer.address %}
+                            <p class="mb-0"><strong>Address:</strong> {{ order.customer.address }}</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Order Items -->
+            <div class="card">
+                <div class="card-header bg-white">
+                    <h5 class="mb-0">Order Items</h5>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Book</th>
+                                    <th>ISBN</th>
+                                    <th>Supplier</th>
+                                    <th class="text-end">Quantity</th>
+                                    <th class="text-end">Unit Price</th>
+                                    <th class="text-end">Discount</th>
+                                    <th class="text-end">Subtotal</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item in order.items.all %}
+                                <tr>
+                                    <td>
+                                        <strong>{{ item.book }}</strong><br>
+                                        <small class="text-muted">
+                                            {% for author in item.book.authors.all %}
+                                                {{ author }}{% if not forloop.last %}, {% endif %}
+                                            {% endfor %}
+                                        </small>
+                                    </td>
+                                    <td>
+                                        <small class="font-monospace">{{ item.book.isbn }}</small>
+                                    </td>
+                                    <td>
+                                        {% if item.supplier %}
+                                            <span class="badge bg-info">{{ item.supplier }}</span>
+                                        {% else %}
+                                            <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-end">{{ item.quantity }}</td>
+                                    <td class="text-end">
+                                        {% if item.original_price and item.original_price > item.unit_price %}
+                                            <span class="text-decoration-line-through text-muted">${{ item.original_price|floatformat:2 }}</span><br>
+                                            <strong class="text-success">${{ item.unit_price|floatformat:2 }}</strong>
+                                        {% else %}
+                                            ${{ item.unit_price|floatformat:2 }}
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-end">
+                                        {% if item.has_discount %}
+                                            <span class="badge bg-success">
+                                                {% if item.discount_percentage > 0 %}
+                                                    {{ item.discount_percentage }}%
+                                                {% else %}
+                                                    ${{ item.get_discount_amount|floatformat:2 }}
+                                                {% endif %}
+                                            </span>
+                                        {% else %}
+                                            <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-end"><strong>${{ item.get_subtotal|floatformat:2 }}</strong></td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                            <tfoot class="table-light">
+                                <tr>
+                                    <td colspan="6" class="text-end"><strong>Total:</strong></td>
+                                    <td class="text-end"><h5 class="mb-0">${{ order.total|floatformat:2 }}</h5></td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            {% if order.notes %}
+            <div class="card mt-4">
+                <div class="card-header bg-white">
+                    <h5 class="mb-0">Notes</h5>
+                </div>
+                <div class="card-body">
+                    <p class="mb-0">{{ order.notes }}</p>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Order Summary Sidebar -->
+        <div class="col-md-4">
+            <!-- Payment Status -->
+            <div class="card mb-4">
+                <div class="card-header" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                    <h5 class="mb-0 text-white"><i class="bi bi-credit-card"></i> Payment Status</h5>
+                </div>
+                <div class="card-body">
+                    <div class="text-center mb-3">
+                        <span class="badge fs-6 bg-{% if order.payment_status == 'paid' %}success{% elif order.payment_status == 'unpaid' %}danger{% else %}warning{% endif %}">
+                            {{ order.get_payment_status_display }}
+                        </span>
+                    </div>
+                    
+                    <div class="d-flex justify-content-between mb-2">
+                        <span>Total Amount:</span>
+                        <strong>${{ order.total|floatformat:2 }}</strong>
+                    </div>
+                    <div class="d-flex justify-content-between mb-2">
+                        <span>Amount Paid:</span>
+                        <strong class="text-success">${{ order.amount_paid|floatformat:2 }}</strong>
+                    </div>
+                    {% if order.deposit_amount > 0 %}
+                    <div class="d-flex justify-content-between mb-2">
+                        <span>Deposit:</span>
+                        <strong class="text-info">${{ order.deposit_amount|floatformat:2 }}</strong>
+                    </div>
+                    {% endif %}
+                    <hr>
+                    <div class="d-flex justify-content-between mb-3">
+                        <h6>Balance Due:</h6>
+                        <h4 class="{% if order.get_balance_due == 0 %}text-success{% else %}text-danger{% endif %} mb-0">
+                            ${{ order.get_balance_due|floatformat:2 }}
+                        </h4>
+                    </div>
+                    
+                    {% if order.get_balance_due > 0 %}
+                    <a href="{% url 'orders:record_payment' order.pk %}" class="btn btn-success w-100">
+                        <i class="bi bi-cash-coin"></i> Record Payment
+                    </a>
+                    {% else %}
+                    <div class="alert alert-success mb-0">
+                        <i class="bi bi-check-circle"></i> Fully Paid
+                    </div>
+                    {% endif %}
+                    
+                    {% if order.payment_notes %}
+                    <div class="mt-3">
+                        <h6 class="text-muted small">Payment History:</h6>
+                        <div style="font-size: 0.75rem; white-space: pre-line; max-height: 150px; overflow-y: auto; background: #f8f9fa; padding: 10px; border-radius: 4px;">{{ order.payment_notes }}</div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        
+            <div class="card mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">Order Summary</h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex justify-content-between mb-2">
+                        <span>Status:</span>
+                        <span class="badge bg-{% if order.status == 'completed' %}success{% elif order.status == 'pending' %}warning{% elif order.status == 'processing' %}info{% else %}secondary{% endif %}">
+                            {{ order.get_status_display }}
+                        </span>
+                    </div>
+                    <div class="d-flex justify-content-between mb-2">
+                        <span>Total Items:</span>
+                        <strong>{{ order.items.count }}</strong>
+                    </div>
+                    <div class="d-flex justify-content-between mb-2">
+                        <span>Total Quantity:</span>
+                        <strong>{{ order.get_total_quantity }}</strong>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header bg-white">
+                    <h5 class="mb-0">Actions</h5>
+                </div>
+                <div class="card-body d-grid gap-2">
+                    <a href="{% url 'admin:orders_order_change' order.pk %}" class="btn btn-primary">
+                        <i class="bi bi-pencil"></i> Edit Order
+                    </a>
+                    <button class="btn btn-success">
+                        <i class="bi bi-printer"></i> Print Invoice
+                    </button>
+                    <button class="btn btn-info text-white">
+                        <i class="bi bi-envelope"></i> Email Customer
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,44 @@
+# Core Django
+Django==5.0.1
+psycopg2-binary==2.9.9
+
+# Environment & Configuration
+django-environ==0.11.2
+
+# Multilingual Support
+django-parler==2.3
+
+# Autocomplete
+django-autocomplete-light==3.11.0
+
+# Celery & Task Queue
+celery==5.3.4
+redis==5.0.1
+django-redis==5.4.0
+django-celery-beat==2.5.0
+django-celery-results==2.5.1
+flower==2.0.1
+gevent==24.2.1
+
+# Email
+django-post-office==3.8.0
+
+# PDF & Barcodes
+WeasyPrint==60.2
+python-barcode==0.15.1
+Pillow==10.2.0
+
+# Reporting & Export
+django-tables2==2.7.0
+django-filter==23.5
+openpyxl==3.1.2
+django-import-export==3.3.8
+
+# Forms & UI
+django-crispy-forms==2.1
+crispy-bootstrap5==2.0.0
+django-htmx==1.17.3
+
+# Development Tools
+django-debug-toolbar==4.3.0
+django-extensions==3.2.3

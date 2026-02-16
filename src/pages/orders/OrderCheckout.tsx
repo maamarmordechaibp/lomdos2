@@ -31,6 +31,8 @@ import {
   Package,
   Minus,
   Plus,
+  Gift,
+  Search,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
@@ -77,6 +79,11 @@ export default function OrderCheckout() {
   // Customer discount toggle - defaults to true when customer has discount
   const [applyCustomerDiscount, setApplyCustomerDiscount] = useState(true);
   
+  // Gift card state
+  const [giftCardNumber, setGiftCardNumber] = useState('');
+  const [giftCardData, setGiftCardData] = useState<{ id: string; card_number: string; balance: number; holder_name: string | null } | null>(null);
+  const [giftCardLookupLoading, setGiftCardLookupLoading] = useState(false);
+
   // Card form
   const [cardNumber, setCardNumber] = useState('');
   const [cardExpiry, setCardExpiry] = useState('');
@@ -232,6 +239,10 @@ export default function OrderCheckout() {
           wants_binding: item.wantsBinding || false,
           binding_fee: item.wantsBinding ? BINDING_FEE : 0,
           binding_fee_applied: itemBindingFee,
+          discount_type: customerDiscountAmount > 0 ? (customer?.default_discount_type as 'percentage' | 'fixed' | null) : (appliedPromoCode?.discount_type || null),
+          discount_value: customerDiscountAmount > 0 ? (customer?.default_discount_value || null) : (appliedPromoCode?.discount_value || null),
+          discount_reason: customerDiscountAmount > 0 ? 'Customer default discount' : (appliedPromoCode ? `Promo: ${appliedPromoCode.code}` : null),
+          original_price: totalDiscount > 0 ? itemSubtotal : null,
           notes: hasStock 
             ? `[POS - From Stock]${totalDiscount > 0 ? ` | Discount: $${itemDiscount.toFixed(2)}` : ''}${item.wantsBinding ? ' | Needs Binding' : ''}` 
             : `[POS - Will Order]${totalDiscount > 0 ? ` | Discount: $${itemDiscount.toFixed(2)}` : ''}${item.wantsBinding ? ' | Needs Binding' : ''}`,
@@ -253,7 +264,7 @@ export default function OrderCheckout() {
         await recordPromoCodeUsage.mutateAsync({
           promoCodeId: appliedPromoCode.id,
           customerId: customer.id,
-          discountAmount: promoDiscountAmount,
+          discountApplied: promoDiscountAmount,
         });
       }
       
@@ -290,6 +301,167 @@ export default function OrderCheckout() {
     }
   };
   
+  // Gift card lookup
+  const lookupGiftCard = async () => {
+    if (!giftCardNumber.trim()) {
+      toast.error('Please enter a gift card number');
+      return;
+    }
+    setGiftCardLookupLoading(true);
+    try {
+      const { data, error } = await (supabase as any)
+        .from('gift_cards')
+        .select('id, card_number, balance, holder_name, is_active')
+        .eq('card_number', giftCardNumber.trim())
+        .single();
+      if (error || !data) {
+        toast.error('Gift card not found');
+        setGiftCardData(null);
+        return;
+      }
+      if (!data.is_active) {
+        toast.error('This gift card is inactive');
+        setGiftCardData(null);
+        return;
+      }
+      if ((data.balance || 0) <= 0) {
+        toast.error('This gift card has no balance');
+        setGiftCardData(null);
+        return;
+      }
+      setGiftCardData(data);
+      const maxFromCard = Math.min(data.balance, finalTotal);
+      setPaymentAmount(maxFromCard.toFixed(2));
+      toast.success(`Gift card found: $${Number(data.balance).toFixed(2)} available`);
+    } catch {
+      toast.error('Failed to look up gift card');
+      setGiftCardData(null);
+    } finally {
+      setGiftCardLookupLoading(false);
+    }
+  };
+
+  // Gift card payment handler
+  const handleGiftCardPayment = async () => {
+    if (!giftCardData) {
+      toast.error('Please look up a gift card first');
+      return;
+    }
+    if (!customer) {
+      toast.error('Please select a customer');
+      return;
+    }
+    if (amount <= 0) {
+      toast.error('Please enter an amount');
+      return;
+    }
+    if (amount > giftCardData.balance) {
+      toast.error(`Gift card only has $${Number(giftCardData.balance).toFixed(2)} — reduce the amount`);
+      return;
+    }
+    if (cart.length === 0) {
+      toast.error('Cart is empty');
+      return;
+    }
+
+    setIsProcessing(true);
+    try {
+      let totalBalanceDue = 0;
+      const discountRatio = totalDiscount > 0 ? totalDiscount / subtotalWithBinding : 0;
+
+      for (const item of cart) {
+        const hasStock = item.book.quantity_in_stock >= item.quantity;
+        const itemBindingFee = item.wantsBinding ? BINDING_FEE * item.quantity : 0;
+        const itemSubtotal = item.price * item.quantity + itemBindingFee;
+        const itemDiscount = itemSubtotal * discountRatio;
+        const itemTotal = itemSubtotal - itemDiscount;
+        const itemBalanceDue = isFullPayment ? 0 : itemTotal - Math.min(amount, itemTotal);
+        totalBalanceDue += itemBalanceDue;
+
+        if (hasStock) {
+          await fromStock.mutateAsync({ bookId: item.book.id, quantity: item.quantity });
+        }
+
+        const order = await createOrder.mutateAsync({
+          customer_id: customer.id,
+          book_id: item.book.id,
+          quantity: item.quantity,
+          status: hasStock ? 'picked_up' : 'pending',
+          payment_status: isFullPayment ? 'paid' : (amount > 0 ? 'partial' : 'unpaid'),
+          payment_method: 'cash',
+          deposit_amount: isFullPayment ? 0 : amount,
+          final_price: itemTotal,
+          actual_cost: item.book.default_cost,
+          is_bill: false,
+          amount_paid: isFullPayment ? itemTotal : Math.min(amount, itemTotal),
+          balance_due: itemBalanceDue,
+          total_amount: itemTotal,
+          picked_up_at: hasStock ? new Date().toISOString() : null,
+          wants_binding: item.wantsBinding || false,
+          binding_fee: item.wantsBinding ? BINDING_FEE : 0,
+          binding_fee_applied: itemBindingFee,
+          discount_type: customerDiscountAmount > 0 ? (customer.default_discount_type as 'percentage' | 'fixed' | null) : (appliedPromoCode?.discount_type || null),
+          discount_value: customerDiscountAmount > 0 ? (customer.default_discount_value || null) : (appliedPromoCode?.discount_value || null),
+          discount_reason: customerDiscountAmount > 0 ? 'Customer default discount' : (appliedPromoCode ? `Promo: ${appliedPromoCode.code}` : null),
+          original_price: totalDiscount > 0 ? itemSubtotal : null,
+          notes: hasStock
+            ? `[POS - From Stock] Gift card ${giftCardData.card_number}${totalDiscount > 0 ? ` | Discount: $${itemDiscount.toFixed(2)}` : ''}${item.wantsBinding ? ' | Needs Binding' : ''}`
+            : `[POS - Will Order] Gift card ${giftCardData.card_number}${totalDiscount > 0 ? ` | Discount: $${itemDiscount.toFixed(2)}` : ''}${item.wantsBinding ? ' | Needs Binding' : ''}`,
+        });
+
+        if (amount > 0) {
+          await supabase.from('customer_payments').insert({
+            customer_id: customer.id,
+            order_id: order.id,
+            amount: isFullPayment ? itemTotal : Math.min(amount, itemTotal),
+            payment_method: 'other',
+            notes: `Gift card ${giftCardData.card_number}`,
+          });
+        }
+      }
+
+      // Record promo code usage
+      if (appliedPromoCode && customer) {
+        await recordPromoCodeUsage.mutateAsync({
+          promoCodeId: appliedPromoCode.id,
+          customerId: customer.id,
+          discountApplied: promoDiscountAmount,
+        });
+      }
+
+      // Update customer outstanding balance
+      if (totalBalanceDue > 0) {
+        const { data: customerData } = await supabase
+          .from('customers')
+          .select('outstanding_balance')
+          .eq('id', customer.id)
+          .single();
+
+        const currentBalance = customerData?.outstanding_balance || 0;
+        await supabase
+          .from('customers')
+          .update({ outstanding_balance: currentBalance + totalBalanceDue })
+          .eq('id', customer.id);
+      }
+
+      // Record gift card redemption transaction
+      await (supabase as any).from('gift_card_transactions').insert({
+        gift_card_id: giftCardData.id,
+        transaction_type: 'redeem',
+        amount: amount,
+        reference: `Order payment for ${customer.name || 'customer'}`,
+        notes: cart.map(i => i.book.title).filter(Boolean).join(', '),
+      });
+
+      toast.success(`$${amount.toFixed(2)} redeemed from gift card ${giftCardData.card_number}`);
+      navigate('/orders/new');
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to process gift card payment');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   const handleCashPayment = () => processPayment('cash');
   
   const handleCardPayment = async () => {
@@ -619,26 +791,79 @@ export default function OrderCheckout() {
                 )}
                 
                 {/* Payment Buttons */}
-                <div className="grid grid-cols-2 gap-4 pt-4">
+                <div className="grid grid-cols-3 gap-3 pt-4">
                   <Button
                     size="lg"
                     variant="outline"
-                    className="h-20 text-xl flex flex-col gap-2"
+                    className="h-20 text-lg flex flex-col gap-2"
                     onClick={handleCashPayment}
                     disabled={!customer || cart.length === 0 || isProcessing}
                   >
-                    {isProcessing ? <Loader2 className="w-8 h-8 animate-spin" /> : <Banknote className="w-8 h-8" />}
+                    {isProcessing ? <Loader2 className="w-7 h-7 animate-spin" /> : <Banknote className="w-7 h-7" />}
                     <span>{amount > 0 ? 'Cash' : 'Order Only'}</span>
                   </Button>
                   <Button
                     size="lg"
-                    className="h-20 text-xl flex flex-col gap-2"
+                    className="h-20 text-lg flex flex-col gap-2"
                     onClick={() => setShowCardDialog(true)}
                     disabled={!customer || cart.length === 0 || amount <= 0 || isProcessing}
                   >
-                    <CreditCard className="w-8 h-8" />
+                    <CreditCard className="w-7 h-7" />
                     <span>Card</span>
                   </Button>
+                  <Button
+                    size="lg"
+                    variant="outline"
+                    className="h-20 text-lg flex flex-col gap-2"
+                    onClick={handleGiftCardPayment}
+                    disabled={!customer || cart.length === 0 || amount <= 0 || !giftCardData || isProcessing}
+                  >
+                    <Gift className="w-7 h-7" />
+                    <span>Gift Card</span>
+                  </Button>
+                </div>
+
+                {/* Gift Card Lookup */}
+                <div className="space-y-3 p-4 border rounded-lg bg-purple-50 dark:bg-purple-900/20">
+                  <Label className="text-sm font-medium flex items-center gap-2">
+                    <Gift className="w-4 h-4" /> Gift Card
+                  </Label>
+                  <div className="flex gap-2">
+                    <Input
+                      value={giftCardNumber}
+                      onChange={(e) => setGiftCardNumber(e.target.value)}
+                      placeholder="GC-12345678"
+                      className="flex-1"
+                    />
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={lookupGiftCard}
+                      disabled={giftCardLookupLoading}
+                    >
+                      {giftCardLookupLoading ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Search className="w-4 h-4" />
+                      )}
+                    </Button>
+                  </div>
+                  {giftCardData && (
+                    <div className="p-3 bg-white dark:bg-background rounded-lg border border-purple-200 dark:border-purple-800">
+                      <div className="flex justify-between items-center">
+                        <div>
+                          <p className="font-medium text-sm">{giftCardData.card_number}</p>
+                          {giftCardData.holder_name && (
+                            <p className="text-xs text-muted-foreground">{giftCardData.holder_name}</p>
+                          )}
+                        </div>
+                        <div className="text-right">
+                          <p className="text-lg font-bold text-purple-600">${Number(giftCardData.balance).toFixed(2)}</p>
+                          <p className="text-xs text-muted-foreground">available</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
                 
                 {!customer && (

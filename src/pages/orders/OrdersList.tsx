@@ -152,6 +152,9 @@ export default function OrdersList() {
       queryClient.invalidateQueries({ queryKey: ['customer-orders'] });
       queryClient.invalidateQueries({ queryKey: ['customers'] });
       queryClient.invalidateQueries({ queryKey: ['customers-with-balance'] });
+      queryClient.invalidateQueries({ queryKey: ['financial-summary'] });
+      queryClient.invalidateQueries({ queryKey: ['book-profitability'] });
+      queryClient.invalidateQueries({ queryKey: ['all-customer-payments'] });
     }
   };
 

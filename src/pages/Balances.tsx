@@ -340,6 +340,9 @@ export default function Balances() {
         // Refresh data
         queryClient.invalidateQueries({ queryKey: ['customers-with-balance'] });
         queryClient.invalidateQueries({ queryKey: ['customers'] });
+        queryClient.invalidateQueries({ queryKey: ['financial-summary'] });
+        queryClient.invalidateQueries({ queryKey: ['book-profitability'] });
+        queryClient.invalidateQueries({ queryKey: ['all-customer-payments'] });
         
         // Reload the history dialog
         await handleOpenHistory({ ...historyDialog.customer, outstanding_balance: newBalance });
@@ -382,12 +385,18 @@ export default function Balances() {
           queryClient.invalidateQueries({ queryKey: ['customers-with-balance'] });
           queryClient.invalidateQueries({ queryKey: ['customers'] });
           queryClient.invalidateQueries({ queryKey: ['orders'] });
+          queryClient.invalidateQueries({ queryKey: ['financial-summary'] });
+          queryClient.invalidateQueries({ queryKey: ['book-profitability'] });
+          queryClient.invalidateQueries({ queryKey: ['all-customer-payments'] });
           
           // Reload the history dialog
           await handleOpenHistory({ ...historyDialog.customer, outstanding_balance: newBalance });
         } else {
           toast.success('Order deleted.');
           queryClient.invalidateQueries({ queryKey: ['orders'] });
+          queryClient.invalidateQueries({ queryKey: ['financial-summary'] });
+          queryClient.invalidateQueries({ queryKey: ['book-profitability'] });
+          queryClient.invalidateQueries({ queryKey: ['all-customer-payments'] });
           await handleOpenHistory(historyDialog.customer);
         }
       } else if (tx.isDeposit && tx.orderId) {
@@ -430,6 +439,9 @@ export default function Balances() {
         queryClient.invalidateQueries({ queryKey: ['customers-with-balance'] });
         queryClient.invalidateQueries({ queryKey: ['customers'] });
         queryClient.invalidateQueries({ queryKey: ['orders'] });
+        queryClient.invalidateQueries({ queryKey: ['financial-summary'] });
+        queryClient.invalidateQueries({ queryKey: ['book-profitability'] });
+        queryClient.invalidateQueries({ queryKey: ['all-customer-payments'] });
         
         await handleOpenHistory({ ...historyDialog.customer, outstanding_balance: newBalance });
       }

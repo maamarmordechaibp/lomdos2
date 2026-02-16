@@ -24,23 +24,60 @@ serve(async (req) => {
 
     const url = new URL(req.url);
     const callLogId = url.searchParams.get("call_log_id");
+    const voicemailEnabled = url.searchParams.get("voicemail") === "1";
+    const callerNumber = url.searchParams.get("caller_number") || "";
+    const customerName = url.searchParams.get("customer_name") || "Customer";
 
     // Parse the callback data
     const contentType = req.headers.get("content-type") || "";
     let dialCallStatus = "";
     let dialCallDuration = 0;
     let answeredBy = "";
+    let recordingUrl = "";
+    let recordingDuration = 0;
 
     if (contentType.includes("application/x-www-form-urlencoded")) {
       const formData = await req.formData();
       dialCallStatus = formData.get("DialCallStatus")?.toString() || formData.get("CallStatus")?.toString() || "";
       dialCallDuration = parseInt(formData.get("DialCallDuration")?.toString() || formData.get("CallDuration")?.toString() || "0");
       answeredBy = formData.get("AnsweredBy")?.toString() || "";
+      recordingUrl = formData.get("RecordingUrl")?.toString() || "";
+      recordingDuration = parseInt(formData.get("RecordingDuration")?.toString() || "0");
     } else {
       const body = await req.json();
       dialCallStatus = body.DialCallStatus || body.CallStatus || "";
       dialCallDuration = parseInt(body.DialCallDuration || body.CallDuration || "0");
       answeredBy = body.AnsweredBy || "";
+      recordingUrl = body.RecordingUrl || "";
+      recordingDuration = parseInt(body.RecordingDuration || "0");
+    }
+
+    // Recording callback from <Record action="..."> - save voicemail and finish
+    if (recordingUrl) {
+      if (callLogId) {
+        const { error: recordingError } = await supabase
+          .from("call_logs")
+          .update({
+            status: 'completed',
+            recording_url: recordingUrl,
+            notes: `Voicemail left (${recordingDuration}s) by ${customerName}`,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", callLogId);
+
+        if (recordingError) {
+          console.error("Error saving voicemail recording:", recordingError);
+        }
+      }
+
+      const completeTwiml = `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Say voice="man" language="en-US">Thank you. Your message has been recorded. Goodbye.</Say>
+</Response>`;
+
+      return new Response(completeTwiml, {
+        headers: { ...corsHeaders, "Content-Type": "application/xml" },
+      });
     }
 
     console.log(`Call status update - LogId: ${callLogId}, Status: ${dialCallStatus}, Duration: ${dialCallDuration}s`);
@@ -85,6 +122,26 @@ serve(async (req) => {
       } else {
         console.log("Call log updated successfully");
       }
+    }
+
+    // If representative did not answer, offer voicemail fallback
+    const shouldOfferVoicemail = voicemailEnabled && ['no_answer', 'busy', 'failed', 'missed'].includes(status);
+
+    if (shouldOfferVoicemail) {
+      const baseUrl = supabaseUrl.replace('https://', '').split('.')[0];
+      const functionBaseUrl = `https://${baseUrl}.supabase.co/functions/v1`;
+      const recordActionUrl = `${functionBaseUrl}/call-status?call_log_id=${callLogId}&amp;voicemail=1&amp;caller_number=${encodeURIComponent(callerNumber)}&amp;customer_name=${encodeURIComponent(customerName)}`;
+
+      const voicemailTwiml = `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Say voice="man" language="en-US">We couldn't connect you right now. Please leave a message after the beep.</Say>
+  <Record maxLength="120" playBeep="true" action="${recordActionUrl}" method="POST" />
+  <Say voice="man" language="en-US">No recording received. Goodbye.</Say>
+</Response>`;
+
+      return new Response(voicemailTwiml, {
+        headers: { ...corsHeaders, "Content-Type": "application/xml" },
+      });
     }
 
     // Return empty TwiML (call is ending anyway)

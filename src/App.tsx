@@ -33,6 +33,8 @@ import UserManagement from "./pages/UserManagement";
 import CallLogs from "./pages/CallLogs";
 import PromoCodes from "./pages/PromoCodes";
 import PartnerAccounting from "./pages/PartnerAccounting";
+import Documents from "./pages/Documents";
+import GiftCards from "./pages/GiftCards";
 
 // Configure React Query with sensible defaults
 const queryClient = new QueryClient({
@@ -225,6 +227,16 @@ const App = () => (
             <Route path="/partner-accounting" element={
               <ProtectedRoute requireAdmin>
                 <PartnerAccounting />
+              </ProtectedRoute>
+            } />
+            <Route path="/documents" element={
+              <ProtectedRoute requireAdmin>
+                <Documents />
+              </ProtectedRoute>
+            } />
+            <Route path="/gift-cards" element={
+              <ProtectedRoute requireAdmin>
+                <GiftCards />
               </ProtectedRoute>
             } />
             <Route path="*" element={<NotFound />} />

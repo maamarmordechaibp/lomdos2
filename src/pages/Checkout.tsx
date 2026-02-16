@@ -113,6 +113,7 @@ export default function Checkout() {
     try {
       // Calculate the discount per order (proportionally)
       const discountPerOrder = discountAmount / orders.length;
+      let remainingPayment = amount;
       
       for (const order of orders) {
         // Apply discount to order if any
@@ -122,9 +123,10 @@ export default function Checkout() {
           : originalPrice;
         
         const orderBalance = orderFinalPrice - (order.amount_paid || 0);
-        const paymentForOrder = Math.min(amount, Math.max(0, orderBalance));
+        const paymentForOrder = Math.min(remainingPayment, Math.max(0, orderBalance));
+        remainingPayment = Math.max(0, remainingPayment - paymentForOrder);
         const newAmountPaid = (order.amount_paid || 0) + paymentForOrder;
-        const isPaidInFull = newAmountPaid >= orderFinalPrice;
+        const isPaidInFull = newAmountPaid >= (orderFinalPrice - 0.01);
         
         const updateData: any = {
           id: order.id,
@@ -147,12 +149,14 @@ export default function Checkout() {
         await updateOrder.mutateAsync(updateData);
         
         // Record payment
-        await supabase.from('customer_payments').insert({
-          customer_id: order.customer_id,
-          order_id: order.id,
-          amount: paymentForOrder,
-          payment_method: 'cash',
-        });
+        if (paymentForOrder > 0) {
+          await supabase.from('customer_payments').insert({
+            customer_id: order.customer_id,
+            order_id: order.id,
+            amount: paymentForOrder,
+            payment_method: 'cash',
+          });
+        }
       }
       
       if (change > 0) {
@@ -208,6 +212,7 @@ export default function Checkout() {
       if (result.success) {
         // Calculate the discount per order (proportionally)
         const discountPerOrder = discountAmount / orders.length;
+        let remainingPayment = amount;
         
         // Update orders
         for (const order of orders) {
@@ -218,9 +223,10 @@ export default function Checkout() {
             : originalPrice;
           
           const orderBalance = orderFinalPrice - (order.amount_paid || 0);
-          const paymentForOrder = Math.min(amount, Math.max(0, orderBalance));
+          const paymentForOrder = Math.min(remainingPayment, Math.max(0, orderBalance));
+          remainingPayment = Math.max(0, remainingPayment - paymentForOrder);
           const newAmountPaid = (order.amount_paid || 0) + paymentForOrder;
-          const isPaidInFull = newAmountPaid >= orderFinalPrice;
+          const isPaidInFull = newAmountPaid >= (orderFinalPrice - 0.01);
           
           const updateData: any = {
             id: order.id,
@@ -243,13 +249,15 @@ export default function Checkout() {
           await updateOrder.mutateAsync(updateData);
           
           // Record payment
-          await supabase.from('customer_payments').insert({
-            customer_id: order.customer_id,
-            order_id: order.id,
-            amount: paymentForOrder,
-            payment_method: 'card',
-            transaction_id: result.transactionId,
-          });
+          if (paymentForOrder > 0) {
+            await supabase.from('customer_payments').insert({
+              customer_id: order.customer_id,
+              order_id: order.id,
+              amount: paymentForOrder,
+              payment_method: 'card',
+              transaction_id: result.transactionId,
+            });
+          }
         }
         
         toast.success('Card payment processed successfully!');

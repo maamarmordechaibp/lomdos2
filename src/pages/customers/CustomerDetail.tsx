@@ -86,7 +86,7 @@ export default function CustomerDetail() {
   const deleteCustomer = useDeleteCustomer();
   
   const [isEditing, setIsEditing] = useState(false);
-  const [editForm, setEditForm] = useState<Partial<Customer>>({});
+  const [editForm, setEditForm] = useState<Partial<Omit<Customer, 'default_discount_type'>> & { default_discount_type?: 'percentage' | 'fixed' | 'none' | null }>({});
   const [paymentDialog, setPaymentDialog] = useState(false);
   const [paymentAmount, setPaymentAmount] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'check'>('cash');
@@ -491,7 +491,6 @@ export default function CustomerDetail() {
           <div class="stat"><div class="stat-value">${stats?.totalOrders}</div><div class="stat-label">Total Orders</div></div>
           <div class="stat"><div class="stat-value">${stats?.totalBooks}</div><div class="stat-label">Books Ordered</div></div>
           <div class="stat"><div class="stat-value">$${stats?.totalRevenue.toFixed(2)}</div><div class="stat-label">Total Revenue</div></div>
-          <div class="stat"><div class="stat-value">$${stats?.totalProfit.toFixed(2)}</div><div class="stat-label">Total Profit</div></div>
           <div class="stat"><div class="stat-value balance">$${(customer?.outstanding_balance || 0).toFixed(2)}</div><div class="stat-label">Outstanding Balance</div></div>
           
           <h2>Order History</h2>
@@ -500,7 +499,9 @@ export default function CustomerDetail() {
               <th>Date</th>
               <th>Book</th>
               <th>Qty</th>
-              <th>Price</th>
+              <th>Orig Price</th>
+              <th>Disc%</th>
+              <th>U.Price</th>
               <th>Status</th>
               <th>Payment</th>
             </tr>
@@ -509,6 +510,8 @@ export default function CustomerDetail() {
                 <td>${format(new Date(o.created_at), 'MM/dd/yy')}</td>
                 <td>${o.book?.title || 'Unknown'}</td>
                 <td>${o.quantity}</td>
+                <td>$${((o.original_price ?? o.total_amount ?? o.final_price ?? 0)).toFixed(2)}</td>
+                <td>${o.discount_type === 'percentage' && o.discount_value ? `${o.discount_value}%` : o.discount_type === 'fixed' && o.discount_value ? `$${o.discount_value.toFixed(2)}` : '0.00'}</td>
                 <td>$${(o.final_price || o.total_amount || 0).toFixed(2)}</td>
                 <td>${o.status}</td>
                 <td>${o.payment_status}</td>

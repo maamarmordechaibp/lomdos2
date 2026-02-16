@@ -49,7 +49,7 @@ serve(async (req) => {
     // Note: & must be escaped as &amp; in XML attributes
     const baseUrl = supabaseUrl.replace('https://', '').split('.')[0];
     const functionBaseUrl = `https://${baseUrl}.supabase.co/functions/v1`;
-    const statusCallbackUrl = `${functionBaseUrl}/call-status?call_log_id=${callLogId}`;
+    const statusCallbackUrl = `${functionBaseUrl}/call-status?call_log_id=${callLogId}&amp;voicemail=1&amp;caller_number=${encodeURIComponent(callerNumber)}&amp;customer_name=${encodeURIComponent(customerName)}`;
     const whisperUrl = `${functionBaseUrl}/call-whisper?customer_name=${encodeURIComponent(customerName)}`;
 
     // Generate TwiML to connect the call to the store

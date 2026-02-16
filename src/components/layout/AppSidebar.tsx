@@ -20,6 +20,8 @@ import {
   Phone,
   Tag,
   Handshake,
+  FolderOpen,
+  Gift,
 } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
@@ -56,6 +58,8 @@ const managementItems = [
   { title: 'Suppliers', icon: Truck, path: '/suppliers' },
   { title: 'Inventory', icon: Warehouse, path: '/inventory' },
   { title: 'Promo Codes', icon: Tag, path: '/promo-codes' },
+  { title: 'Documents', icon: FolderOpen, path: '/documents' },
+  { title: 'Gift Cards', icon: Gift, path: '/gift-cards' },
   { title: 'Balances', icon: DollarSign, path: '/balances' },
   { title: 'Financials', icon: BarChart3, path: '/financials' },
   { title: 'Partner Accounting', icon: Handshake, path: '/partner-accounting' },

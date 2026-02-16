@@ -126,8 +126,9 @@ export default function Financials() {
     
     const reportData = {
       period: selectedMonth ? `${selectedYear}-${String(selectedMonth).padStart(2, '0')}` : `${selectedYear}`,
-      revenue: summary.revenue,
-      cost: summary.cost,
+      cashReceived: summary.revenue,
+      totalSales: summary.totalOrderValue,
+      bookCosts: summary.cost,
       grossProfit: summary.grossProfit,
       expenses: summary.totalExpenses,
       netProfit: summary.netProfit,
@@ -201,7 +202,7 @@ export default function Financials() {
         </div>
 
         {/* Summary Cards */}
-        <div className="grid gap-4 md:grid-cols-4">
+        <div className="grid gap-4 md:grid-cols-5">
           <Card className="shadow-card">
             <CardContent className="p-6">
               <div className="flex items-center gap-4">
@@ -209,10 +210,27 @@ export default function Financials() {
                   <TrendingUp className="w-6 h-6 text-green-600" />
                 </div>
                 <div>
-                  <p className="text-sm text-muted-foreground">Revenue</p>
+                  <p className="text-sm text-muted-foreground">Cash Received</p>
                   <p className="text-2xl font-bold text-green-600">
                     ${summary?.revenue.toFixed(2) || '0.00'}
                   </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="shadow-card">
+            <CardContent className="p-6">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-xl bg-blue-500/10 flex items-center justify-center">
+                  <DollarSign className="w-6 h-6 text-blue-600" />
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Total Sales</p>
+                  <p className="text-2xl font-bold text-blue-600">
+                    ${summary?.totalOrderValue?.toFixed(2) || '0.00'}
+                  </p>
+                  <p className="text-xs text-muted-foreground">{summary?.orderCount || 0} orders</p>
                 </div>
               </div>
             </CardContent>

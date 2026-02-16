@@ -380,48 +380,62 @@ export function useFinancialSummary(year?: number, month?: number) {
   return useQuery({
     queryKey: ['financial-summary', year, month],
     queryFn: async () => {
-      // Get orders for revenue/cost
-      let ordersQuery = supabase
-        .from('customer_orders')
-        .select('final_price, actual_cost, created_at, picked_up_at')
-        .eq('status', 'picked_up');
+      // Build date range
+      let isoStart: string | undefined;
+      let isoEnd: string | undefined;
+      let dateStart: string | undefined;
+      let dateEnd: string | undefined;
       
       if (year && month) {
-        const startDate = new Date(year, month - 1, 1).toISOString();
-        const endDate = new Date(year, month, 0, 23, 59, 59).toISOString();
-        ordersQuery = ordersQuery.gte('picked_up_at', startDate).lte('picked_up_at', endDate);
+        isoStart = new Date(year, month - 1, 1).toISOString();
+        isoEnd = new Date(year, month, 0, 23, 59, 59).toISOString();
+        dateStart = `${year}-${String(month).padStart(2, '0')}-01`;
+        const lastDay = new Date(year, month, 0).getDate();
+        dateEnd = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
       } else if (year) {
-        const startDate = new Date(year, 0, 1).toISOString();
-        const endDate = new Date(year, 11, 31, 23, 59, 59).toISOString();
-        ordersQuery = ordersQuery.gte('picked_up_at', startDate).lte('picked_up_at', endDate);
+        isoStart = new Date(year, 0, 1).toISOString();
+        isoEnd = new Date(year, 11, 31, 23, 59, 59).toISOString();
+        dateStart = `${year}-01-01`;
+        dateEnd = `${year}-12-31`;
       }
-      
+
+      // 1) Revenue = actual money received (from customer_payments)
+      let paymentsQuery = supabase
+        .from('customer_payments')
+        .select('amount, created_at');
+      if (isoStart && isoEnd) {
+        paymentsQuery = paymentsQuery.gte('created_at', isoStart).lte('created_at', isoEnd);
+      }
+      const { data: payments, error: paymentsError } = await paymentsQuery;
+      if (paymentsError) throw paymentsError;
+
+      const revenue = payments?.reduce((sum, p) => sum + (p.amount || 0), 0) || 0;
+
+      // 2) Cost = book costs from all non-cancelled orders in the period
+      let ordersQuery = supabase
+        .from('customer_orders')
+        .select('final_price, actual_cost, created_at, amount_paid')
+        .neq('status', 'cancelled');
+      if (isoStart && isoEnd) {
+        ordersQuery = ordersQuery.gte('created_at', isoStart).lte('created_at', isoEnd);
+      }
       const { data: orders, error: ordersError } = await ordersQuery;
       if (ordersError) throw ordersError;
+
+      const cost = orders?.reduce((sum, o) => sum + (o.actual_cost || 0), 0) || 0;
+      const totalOrderValue = orders?.reduce((sum, o) => sum + (o.final_price || 0), 0) || 0;
       
-      // Get expenses
+      // 3) Expenses
       let expensesQuery = supabase
         .from('expenses')
         .select('amount, category, expense_date, is_tax_deductible');
-      
-      if (year && month) {
-        const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
-        // Use Date to get the correct last day of the month
-        const lastDay = new Date(year, month, 0).getDate();
-        const endDate = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
-        expensesQuery = expensesQuery.gte('expense_date', startDate).lte('expense_date', endDate);
-      } else if (year) {
-        const startDate = `${year}-01-01`;
-        const endDate = `${year}-12-31`;
-        expensesQuery = expensesQuery.gte('expense_date', startDate).lte('expense_date', endDate);
+      if (dateStart && dateEnd) {
+        expensesQuery = expensesQuery.gte('expense_date', dateStart).lte('expense_date', dateEnd);
       }
-      
       const { data: expenses, error: expensesError } = await expensesQuery;
       if (expensesError) throw expensesError;
       
       // Calculate totals
-      const revenue = orders?.reduce((sum, o) => sum + (o.final_price || 0), 0) || 0;
-      const cost = orders?.reduce((sum, o) => sum + (o.actual_cost || 0), 0) || 0;
       const totalExpenses = expenses?.reduce((sum, e) => sum + e.amount, 0) || 0;
       const taxDeductibleExpenses = expenses?.filter(e => e.is_tax_deductible).reduce((sum, e) => sum + e.amount, 0) || 0;
       const grossProfit = revenue - cost;
@@ -441,6 +455,7 @@ export function useFinancialSummary(year?: number, month?: number) {
         taxDeductibleExpenses,
         netProfit,
         orderCount: orders?.length || 0,
+        totalOrderValue,
         expensesByCategory,
       };
     },
@@ -454,14 +469,14 @@ export function useBookProfitability(startDate?: string, endDate?: string) {
     queryFn: async () => {
       let query = supabase
         .from('customer_orders')
-        .select('book_id, book:books(title), final_price, actual_cost, quantity')
-        .eq('status', 'picked_up');
+        .select('book_id, book:books(title), final_price, actual_cost, quantity, amount_paid')
+        .neq('status', 'cancelled');
       
       if (startDate) {
-        query = query.gte('picked_up_at', startDate) as typeof query;
+        query = query.gte('created_at', startDate) as typeof query;
       }
       if (endDate) {
-        query = query.lte('picked_up_at', endDate) as typeof query;
+        query = query.lte('created_at', endDate) as typeof query;
       }
       
       const { data, error } = await query;

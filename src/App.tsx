@@ -13,6 +13,7 @@ import NotFound from "./pages/NotFound";
 import NewOrder from "./pages/orders/NewOrderSimple";
 import OrderCheckout from "./pages/orders/OrderCheckout";
 import OrdersList from "./pages/orders/OrdersList";
+import PendingOrders from "./pages/orders/PendingOrders";
 import PendingSupplier from "./pages/PendingSupplier";
 import CustomersList from "./pages/customers/CustomersList";
 import CustomerDetail from "./pages/customers/CustomerDetail";
@@ -132,6 +133,11 @@ const App = () => (
             <Route path="/orders" element={
               <ProtectedRoute requireAdmin>
                 <OrdersList />
+              </ProtectedRoute>
+            } />
+            <Route path="/pending-orders" element={
+              <ProtectedRoute requireAdmin>
+                <PendingOrders />
               </ProtectedRoute>
             } />
             <Route path="/pending-supplier" element={

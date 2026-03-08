@@ -141,11 +141,13 @@ export default function SupplierOrderDetail() {
 
       // Update customer order if linked
       if (item.customer_order_id && cost) {
-        const finalPrice = calculateFinalPrice(cost, item.book);
+        const qty = item.customer_order?.quantity || 1;
+        const totalCost = cost * qty;
+        const finalPrice = calculateFinalPrice(cost, item.book) * qty;
         await updateCustomerOrder.mutateAsync({
           id: item.customer_order_id,
           status: 'received',
-          actual_cost: cost,
+          actual_cost: totalCost,
           final_price: parseFloat(finalPrice.toFixed(2)),
         });
 

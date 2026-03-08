@@ -357,7 +357,7 @@ export default function NewOrder() {
           payment_method: method,
           deposit_amount: isFullPayment ? 0 : amount,
           final_price: itemTotal,
-          actual_cost: item.book.default_cost,
+          actual_cost: (item.book.default_cost || 0) * item.quantity,
           is_bill: false,
           amount_paid: isFullPayment ? itemTotal : Math.min(amount, itemTotal),
           balance_due: itemBalanceDue,

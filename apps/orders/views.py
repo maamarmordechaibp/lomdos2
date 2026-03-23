@@ -132,6 +132,19 @@ class OrderDetailView(LoginRequiredMixin, DetailView):
         )
 
 
+class InvoicePrintView(LoginRequiredMixin, DetailView):
+    """Printable invoice for an order."""
+    model = Order
+    template_name = 'orders/invoice_print.html'
+    context_object_name = 'order'
+
+    def get_queryset(self):
+        return Order.objects.select_related('customer').prefetch_related(
+            'items__book__authors',
+            'items__supplier'
+        )
+
+
 class RecordPaymentView(LoginRequiredMixin, DetailView):
     """Record payment for an order."""
     model = Order

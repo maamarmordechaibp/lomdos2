@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Invoice - {{ order.order_number }}</title>
+    <style>
+        @media print {
+            body { margin: 0; padding: 15px; }
+            .no-print { display: none !important; }
+            @page { margin: 0.5in; }
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'David', 'Times New Roman', serif;
+            font-size: 14px;
+            color: #000;
+            background: #fff;
+            direction: rtl;
+        }
+
+        /* ── Business Header ── */
+        .invoice-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 3px solid #000;
+            padding-bottom: 12px;
+            margin-bottom: 20px;
+        }
+
+        .business-name {
+            text-align: right;
+        }
+
+        .business-name .hebrew-name {
+            font-size: 36px;
+            font-weight: bold;
+            line-height: 1.1;
+            font-family: 'David', 'Times New Roman', serif;
+        }
+
+        .business-name .english-name {
+            font-size: 18px;
+            font-weight: bold;
+            font-family: Arial, sans-serif;
+            direction: ltr;
+        }
+
+        .business-name .english-subtitle {
+            font-size: 13px;
+            font-family: Arial, sans-serif;
+            color: #333;
+            direction: ltr;
+        }
+
+        .business-contact {
+            text-align: left;
+            direction: ltr;
+            font-family: Arial, sans-serif;
+            font-size: 13px;
+            line-height: 1.6;
+        }
+
+        .business-contact .address {
+            font-weight: 500;
+        }
+
+        .business-contact .phone {
+            font-size: 16px;
+            font-weight: bold;
+        }
+
+        .business-contact .email {
+            color: #333;
+        }
+
+        /* ── Invoice Meta ── */
+        .invoice-meta {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 20px;
+            font-family: Arial, sans-serif;
+        }
+
+        .invoice-meta .invoice-info {
+            text-align: right;
+        }
+
+        .invoice-meta .invoice-info h2 {
+            font-size: 22px;
+            margin-bottom: 5px;
+        }
+
+        .invoice-meta .customer-info {
+            text-align: left;
+            direction: ltr;
+        }
+
+        .invoice-meta .customer-info h3 {
+            font-size: 16px;
+            margin-bottom: 4px;
+            color: #333;
+        }
+
+        /* ── Table ── */
+        .items-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+            font-family: Arial, sans-serif;
+            direction: ltr;
+        }
+
+        .items-table th {
+            background: #222;
+            color: #fff;
+            padding: 8px 10px;
+            text-align: left;
+            font-size: 13px;
+        }
+
+        .items-table th:last-child,
+        .items-table td:last-child,
+        .items-table th:nth-child(4),
+        .items-table td:nth-child(4),
+        .items-table th:nth-child(5),
+        .items-table td:nth-child(5) {
+            text-align: right;
+        }
+
+        .items-table td {
+            padding: 7px 10px;
+            border-bottom: 1px solid #ddd;
+            font-size: 13px;
+        }
+
+        .items-table tbody tr:nth-child(even) {
+            background: #f9f9f9;
+        }
+
+        .items-table .book-title {
+            font-weight: 600;
+        }
+
+        .items-table .book-author {
+            font-size: 11px;
+            color: #666;
+        }
+
+        /* ── Totals ── */
+        .totals-section {
+            display: flex;
+            justify-content: flex-end;
+            margin-bottom: 20px;
+            direction: ltr;
+            font-family: Arial, sans-serif;
+        }
+
+        .totals-table {
+            width: 280px;
+        }
+
+        .totals-table .row {
+            display: flex;
+            justify-content: space-between;
+            padding: 5px 0;
+            border-bottom: 1px solid #eee;
+        }
+
+        .totals-table .row.total-row {
+            border-top: 2px solid #000;
+            border-bottom: 2px solid #000;
+            font-weight: bold;
+            font-size: 16px;
+            padding: 8px 0;
+        }
+
+        .totals-table .row.balance-row {
+            color: #c00;
+            font-weight: bold;
+        }
+
+        .totals-table .row.paid-row {
+            color: #060;
+        }
+
+        /* ── Notes & Footer ── */
+        .invoice-notes {
+            margin-bottom: 20px;
+            padding: 10px;
+            background: #f5f5f5;
+            border-left: 3px solid #333;
+            font-family: Arial, sans-serif;
+            direction: ltr;
+        }
+
+        .invoice-footer {
+            text-align: center;
+            font-size: 12px;
+            color: #666;
+            border-top: 1px solid #ccc;
+            padding-top: 10px;
+            font-family: Arial, sans-serif;
+            direction: ltr;
+        }
+
+        /* ── Print Button ── */
+        .print-bar {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .print-bar button {
+            padding: 10px 30px;
+            font-size: 16px;
+            cursor: pointer;
+            background: #222;
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+        }
+
+        .print-bar button:hover {
+            background: #444;
+        }
+
+        .print-bar a {
+            margin-left: 15px;
+            color: #555;
+            text-decoration: none;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Print controls (hidden on print) -->
+    <div class="print-bar no-print">
+        <button onclick="window.print()">🖨️ Print Invoice</button>
+        <a href="{% url 'orders:order_detail' order.pk %}">← Back to Order</a>
+    </div>
+
+    <!-- ════════════════════ BUSINESS HEADER ════════════════════ -->
+    <div class="invoice-header">
+        <div class="business-name">
+            <div class="hebrew-name">לומדות</div>
+            <div class="english-name">Lomdos</div>
+            <div class="english-subtitle">Seforim &amp; Books</div>
+        </div>
+        <div class="business-contact">
+            <div class="address">23 Troman Ave. Apt 316</div>
+            <div class="address">Spring Valley, NY 10977</div>
+            <div class="phone">845-445-9166</div>
+            <div class="email">cadschwartz@gmail.com</div>
+        </div>
+    </div>
+
+    <!-- ════════════════════ INVOICE INFO ════════════════════ -->
+    <div class="invoice-meta">
+        <div class="invoice-info">
+            <h2>INVOICE</h2>
+            <div><strong>Invoice #:</strong> {{ order.order_number }}</div>
+            <div><strong>Date:</strong> {{ order.created_at|date:"F d, Y" }}</div>
+            <div><strong>Status:</strong> {{ order.get_status_display }}</div>
+        </div>
+        <div class="customer-info">
+            <h3>Bill To:</h3>
+            <div><strong>{{ order.customer }}</strong></div>
+            {% if order.customer.phone %}
+            <div>{{ order.customer.phone }}</div>
+            {% endif %}
+            {% if order.customer.email %}
+            <div>{{ order.customer.email }}</div>
+            {% endif %}
+            {% if order.customer.address %}
+            <div>{{ order.customer.address }}</div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- ════════════════════ ITEMS TABLE ════════════════════ -->
+    <table class="items-table">
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>Book</th>
+                <th>ISBN</th>
+                <th>Qty</th>
+                <th>Unit Price</th>
+                <th>Subtotal</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in order.items.all %}
+            <tr>
+                <td>{{ forloop.counter }}</td>
+                <td>
+                    <span class="book-title">{{ item.book }}</span><br>
+                    <span class="book-author">
+                        {% for author in item.book.authors.all %}
+                            {{ author }}{% if not forloop.last %}, {% endif %}
+                        {% endfor %}
+                    </span>
+                </td>
+                <td>{{ item.book.isbn }}</td>
+                <td>{{ item.quantity }}</td>
+                <td>${{ item.unit_price|floatformat:2 }}</td>
+                <td>${{ item.get_subtotal|floatformat:2 }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <!-- ════════════════════ TOTALS ════════════════════ -->
+    <div class="totals-section">
+        <div class="totals-table">
+            <div class="row total-row">
+                <span>Total:</span>
+                <span>${{ order.total|floatformat:2 }}</span>
+            </div>
+            {% if order.amount_paid > 0 %}
+            <div class="row paid-row">
+                <span>Amount Paid:</span>
+                <span>${{ order.amount_paid|floatformat:2 }}</span>
+            </div>
+            {% endif %}
+            {% if order.deposit_amount > 0 %}
+            <div class="row">
+                <span>Deposit:</span>
+                <span>${{ order.deposit_amount|floatformat:2 }}</span>
+            </div>
+            {% endif %}
+            {% if order.get_balance_due > 0 %}
+            <div class="row balance-row">
+                <span>Balance Due:</span>
+                <span>${{ order.get_balance_due|floatformat:2 }}</span>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- ════════════════════ NOTES ════════════════════ -->
+    {% if order.notes %}
+    <div class="invoice-notes">
+        <strong>Notes:</strong> {{ order.notes }}
+    </div>
+    {% endif %}
+
+    <!-- ════════════════════ FOOTER ════════════════════ -->
+    <div class="invoice-footer">
+        <strong>Lomdos</strong> — Seforim &amp; Books &nbsp;|&nbsp;
+        23 Troman Ave. Apt 316, Spring Valley, NY 10977 &nbsp;|&nbsp;
+        845-445-9166 &nbsp;|&nbsp; cadschwartz@gmail.com
+    </div>
+
+</body>
+</html>

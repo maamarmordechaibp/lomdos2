@@ -212,9 +212,9 @@
                     <a href="{% url 'admin:orders_order_change' order.pk %}" class="btn btn-primary">
                         <i class="bi bi-pencil"></i> Edit Order
                     </a>
-                    <button class="btn btn-success">
+                    <a href="{% url 'orders:invoice_print' order.pk %}" class="btn btn-success" target="_blank">
                         <i class="bi bi-printer"></i> Print Invoice
-                    </button>
+                    </a>
                     <button class="btn btn-info text-white">
                         <i class="bi bi-envelope"></i> Email Customer
                     </button>

@@ -1,0 +1,158 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap');
+
+/* Warm Bookstore Design System */
+@layer base {
+  :root {
+    --background: 40 30% 97%;
+    --foreground: 30 15% 15%;
+
+    --card: 40 25% 99%;
+    --card-foreground: 30 15% 15%;
+
+    --popover: 40 25% 99%;
+    --popover-foreground: 30 15% 15%;
+
+    --primary: 25 40% 28%;
+    --primary-foreground: 40 30% 97%;
+
+    --secondary: 35 25% 92%;
+    --secondary-foreground: 30 15% 20%;
+
+    --muted: 35 20% 94%;
+    --muted-foreground: 30 10% 45%;
+
+    --accent: 30 50% 50%;
+    --accent-foreground: 40 30% 97%;
+
+    --destructive: 0 65% 50%;
+    --destructive-foreground: 0 0% 100%;
+
+    --success: 145 60% 35%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 38 92% 50%;
+    --warning-foreground: 30 15% 15%;
+
+    --border: 35 20% 88%;
+    --input: 35 20% 88%;
+    --ring: 25 40% 28%;
+
+    --radius: 0.625rem;
+
+    --sidebar-background: 25 35% 18%;
+    --sidebar-foreground: 40 20% 92%;
+    --sidebar-primary: 30 50% 55%;
+    --sidebar-primary-foreground: 40 30% 97%;
+    --sidebar-accent: 25 30% 25%;
+    --sidebar-accent-foreground: 40 20% 92%;
+    --sidebar-border: 25 25% 25%;
+    --sidebar-ring: 30 50% 55%;
+
+    /* Custom gradients */
+    --gradient-warm: linear-gradient(135deg, hsl(30 50% 50%) 0%, hsl(25 40% 28%) 100%);
+    --gradient-paper: linear-gradient(180deg, hsl(40 30% 97%) 0%, hsl(35 25% 94%) 100%);
+    
+    /* Shadows */
+    --shadow-soft: 0 2px 8px -2px hsl(30 15% 15% / 0.08);
+    --shadow-card: 0 4px 16px -4px hsl(30 15% 15% / 0.1);
+    --shadow-elevated: 0 8px 32px -8px hsl(30 15% 15% / 0.15);
+  }
+
+  .dark {
+    --background: 25 20% 10%;
+    --foreground: 40 20% 92%;
+
+    --card: 25 18% 14%;
+    --card-foreground: 40 20% 92%;
+
+    --popover: 25 18% 14%;
+    --popover-foreground: 40 20% 92%;
+
+    --primary: 30 50% 55%;
+    --primary-foreground: 25 20% 10%;
+
+    --secondary: 25 15% 20%;
+    --secondary-foreground: 40 20% 92%;
+
+    --muted: 25 15% 18%;
+    --muted-foreground: 35 15% 55%;
+
+    --accent: 30 50% 50%;
+    --accent-foreground: 40 30% 97%;
+
+    --destructive: 0 55% 45%;
+    --destructive-foreground: 0 0% 100%;
+
+    --success: 145 50% 40%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 38 85% 55%;
+    --warning-foreground: 25 20% 10%;
+
+    --border: 25 15% 22%;
+    --input: 25 15% 22%;
+    --ring: 30 50% 55%;
+
+    --sidebar-background: 25 20% 8%;
+    --sidebar-foreground: 40 20% 92%;
+    --sidebar-primary: 30 50% 55%;
+    --sidebar-primary-foreground: 25 20% 10%;
+    --sidebar-accent: 25 18% 14%;
+    --sidebar-accent-foreground: 40 20% 92%;
+    --sidebar-border: 25 15% 18%;
+    --sidebar-ring: 30 50% 55%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-display font-semibold tracking-tight;
+  }
+}
+
+@layer utilities {
+  .font-display {
+    font-family: 'Playfair Display', Georgia, serif;
+  }
+  
+  .font-sans {
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+
+  .gradient-warm {
+    background: var(--gradient-warm);
+  }
+
+  .gradient-paper {
+    background: var(--gradient-paper);
+  }
+
+  .shadow-soft {
+    box-shadow: var(--shadow-soft);
+  }
+
+  .shadow-card {
+    box-shadow: var(--shadow-card);
+  }
+
+  .shadow-elevated {
+    box-shadow: var(--shadow-elevated);
+  }
+
+  .text-balance {
+    text-wrap: balance;
+  }
+}

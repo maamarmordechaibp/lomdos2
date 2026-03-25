@@ -28,7 +28,7 @@ export default function Settings() {
   const [uploadingFavicon, setUploadingFavicon] = useState(false);
   
   const [formData, setFormData] = useState({
-    store_name: 'New Square Bookstore',
+    store_name: 'Lomdos - Seforim & Books',
     store_logo_url: '',
     favicon_url: '',
     store_cell_phone: '',
@@ -40,7 +40,7 @@ export default function Settings() {
   useEffect(() => {
     if (settings) {
       setFormData({
-        store_name: settings.store_name || 'New Square Bookstore',
+        store_name: settings.store_name || 'Lomdos - Seforim & Books',
         store_logo_url: settings.store_logo_url || '',
         favicon_url: (settings as any).favicon_url || '',
         store_cell_phone: (settings as any).store_cell_phone || '',
@@ -169,7 +169,7 @@ export default function Settings() {
               <Input
                 value={formData.store_name}
                 onChange={(e) => setFormData({ ...formData, store_name: e.target.value })}
-                placeholder="New Square Bookstore"
+                placeholder="Lomdos - Seforim & Books"
               />
               <p className="text-xs text-muted-foreground">
                 This name is used in phone calls and SMS notifications to customers

@@ -115,7 +115,7 @@ serve(async (req) => {
       .select("*")
       .single();
     
-    const storeName = settings?.store_name || "New Square Bookstore";
+    const storeName = settings?.store_name || "Lomdos - Seforim & Books";
 
     // Get customer details
     const { data: customer, error: customerError } = await supabase
@@ -296,9 +296,9 @@ function getEmailSubject(notificationType: string, bookTitle: string): string {
     case "order_received":
       return `Order received - ${bookTitle}`;
     case "custom":
-      return "Message from New Square Bookstore";
+      return "Message from Lomdos";
     default:
-      return "Notification from New Square Bookstore";
+      return "Notification from Lomdos";
   }
 }
 
@@ -430,8 +430,10 @@ async function sendEmail({
       <title>${subject}</title>
     </head>
     <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-      <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; border-radius: 10px 10px 0 0;">
-        <h1 style="color: white; margin: 0; font-size: 24px;">New Square Bookstore</h1>
+      <div style="background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%); padding: 30px; border-radius: 10px 10px 0 0; text-align: center;">
+        <p style="color: white; margin: 0 0 4px 0; font-size: 28px; font-weight: bold;">לומדות</p>
+        <h1 style="color: white; margin: 0; font-size: 20px;">Lomdos / Seforim &amp; Books</h1>
+        <p style="color: rgba(255,255,255,0.9); margin: 5px 0 0 0; font-size: 12px;">23 Troman Ave. Apt 316, Spring Valley, NY 10977 &bull; 845-445-9166 &bull; cadschwartz@gmail.com</p>
       </div>
       <div style="background: #f9fafb; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 10px 10px;">
         <p style="font-size: 16px; margin-bottom: 20px;">Dear ${customerName},</p>
@@ -439,10 +441,12 @@ async function sendEmail({
           <p style="margin: 0; font-size: 15px;">${message}</p>
         </div>
         <p style="margin-top: 30px; font-size: 14px; color: #6b7280;">
-          Thank you for choosing New Square Bookstore!
+          Thank you for choosing Lomdos!
         </p>
         <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
         <p style="font-size: 12px; color: #9ca3af; margin: 0;">
+          Lomdos / Seforim &amp; Books<br>
+          23 Troman Ave. Apt 316, Spring Valley, NY 10977 &bull; 845-445-9166<br>
           This is an automated message. Please do not reply to this email.
         </p>
       </div>
@@ -457,7 +461,7 @@ async function sendEmail({
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      from: "New Square Bookstore <orders@maamarmordechai.com>",
+      from: "Lomdos <orders@maamarmordechai.com>",
       to: [to],
       subject: subject,
       html: htmlContent,

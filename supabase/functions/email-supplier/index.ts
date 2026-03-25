@@ -113,7 +113,7 @@ serve(async (req) => {
       .select("store_name, store_logo_url")
       .single();
     
-    const storeName = settings?.store_name || "New Square Bookstore";
+    const storeName = settings?.store_name || "Lomdos - Seforim & Books";
     const storeLogoUrl = settings?.store_logo_url || null;
 
     const body = await req.json();
@@ -398,8 +398,9 @@ function generateSupplierEmailHtml(subject: string, content: string, supplierNam
     <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 700px; margin: 0 auto; padding: 20px;">
       <div style="background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%); padding: 30px; border-radius: 10px 10px 0 0; text-align: center;">
         ${logoHtml}
-        <h1 style="color: white; margin: 0; font-size: 24px;">${storeName}</h1>
-        <p style="color: rgba(255,255,255,0.9); margin: 5px 0 0 0; font-size: 14px;">Supplier Order Communication</p>
+        <p style="color: white; margin: 0 0 4px 0; font-size: 28px; font-weight: bold;">לומדות</p>
+        <h1 style="color: white; margin: 0; font-size: 20px;">${storeName}</h1>
+        <p style="color: rgba(255,255,255,0.9); margin: 5px 0 0 0; font-size: 12px;">23 Troman Ave. Apt 316, Spring Valley, NY 10977 &bull; 845-445-9166 &bull; cadschwartz@gmail.com</p>
       </div>
       <div style="background: #f9fafb; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 10px 10px;">
         <div style="background: white; padding: 25px; border-radius: 8px; border: 1px solid #e5e7eb;">
@@ -408,6 +409,7 @@ function generateSupplierEmailHtml(subject: string, content: string, supplierNam
         <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
         <p style="font-size: 12px; color: #9ca3af; margin: 0; text-align: center;">
           ${storeName}<br>
+          23 Troman Ave. Apt 316, Spring Valley, NY 10977 &bull; 845-445-9166<br>
           This is an automated message from our order management system.
         </p>
       </div>

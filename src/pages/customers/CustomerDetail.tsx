@@ -571,10 +571,19 @@ export default function CustomerDetail() {
             .stat-value { font-size: 24px; font-weight: bold; }
             .stat-label { color: #666; }
             .balance { color: ${(customer?.outstanding_balance || 0) > 0 ? '#dc2626' : '#16a34a'}; }
+            .business-header { text-align: center; border-bottom: 2px solid #1d4ed8; padding-bottom: 15px; margin-bottom: 20px; }
+            .business-header .hebrew-name { font-size: 28px; font-weight: bold; color: #1d4ed8; margin: 0; }
+            .business-header .english-name { font-size: 16px; color: #374151; margin: 2px 0; }
+            .business-header .contact-info { font-size: 12px; color: #6b7280; margin: 5px 0 0 0; }
             @media print { body { padding: 0; } }
           </style>
         </head>
         <body>
+          <div class="business-header">
+            <p class="hebrew-name">לומדות</p>
+            <p class="english-name">Lomdos / Seforim &amp; Books</p>
+            <p class="contact-info">23 Troman Ave. Apt 316, Spring Valley, NY 10977 &bull; 845-445-9166 &bull; cadschwartz@gmail.com</p>
+          </div>
           <h1>Customer Report: ${customer?.name}</h1>
           <p><strong>Phone:</strong> ${customer?.phone || 'N/A'}</p>
           <p><strong>Email:</strong> ${customer?.email || 'N/A'}</p>

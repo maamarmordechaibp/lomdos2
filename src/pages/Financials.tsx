@@ -124,27 +124,85 @@ export default function Financials() {
   const generateReport = () => {
     if (!summary) return;
     
-    const reportData = {
-      period: selectedMonth ? `${selectedYear}-${String(selectedMonth).padStart(2, '0')}` : `${selectedYear}`,
-      cashReceived: summary.revenue,
-      totalSales: summary.totalOrderValue,
-      bookCosts: summary.cost,
-      grossProfit: summary.grossProfit,
-      expenses: summary.totalExpenses,
-      netProfit: summary.netProfit,
-      taxDeductible: summary.taxDeductibleExpenses,
-      expensesByCategory: summary.expensesByCategory,
-      bookProfits: bookProfits?.slice(0, 10),
-    };
+    const period = selectedMonth
+      ? `${selectedYear}-${String(selectedMonth).padStart(2, '0')}`
+      : `${selectedYear}`;
     
-    const blob = new Blob([JSON.stringify(reportData, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `financial-report-${reportData.period}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-    toast.success('Report downloaded');
+    const expenseRows = Object.entries(summary.expensesByCategory || {})
+      .map(([cat, amt]) => `<tr><td>${cat}</td><td style="text-align:right">$${(amt as number).toFixed(2)}</td></tr>`)
+      .join('');
+    
+    const topBooks = (bookProfits?.slice(0, 10) || []).map((b: any) =>
+      `<tr><td>${b.title || 'Unknown'}</td><td style="text-align:right">${b.totalSold || 0}</td><td style="text-align:right">$${(b.revenue || 0).toFixed(2)}</td><td style="text-align:right">$${(b.cost || 0).toFixed(2)}</td><td style="text-align:right">$${(b.profit || 0).toFixed(2)}</td></tr>`
+    ).join('');
+    
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+    
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Financial Report - ${period}</title>
+        <style>
+          body { font-family: Arial, sans-serif; padding: 30px; color: #333; }
+          .business-header { text-align: center; border-bottom: 2px solid #1d4ed8; padding-bottom: 15px; margin-bottom: 20px; }
+          .business-header .hebrew-name { font-size: 28px; font-weight: bold; color: #1d4ed8; margin: 0; }
+          .business-header .english-name { font-size: 16px; color: #374151; margin: 2px 0; }
+          .business-header .contact-info { font-size: 12px; color: #6b7280; margin: 5px 0 0 0; }
+          h1 { border-bottom: 2px solid #333; padding-bottom: 10px; }
+          h2 { margin-top: 30px; color: #1d4ed8; }
+          table { width: 100%; border-collapse: collapse; margin: 15px 0; }
+          th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+          th { background-color: #f5f5f5; }
+          .summary-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin: 20px 0; }
+          .summary-card { border: 1px solid #ddd; border-radius: 8px; padding: 15px; text-align: center; }
+          .summary-card .value { font-size: 22px; font-weight: bold; }
+          .summary-card .label { color: #666; font-size: 13px; }
+          .profit { color: ${summary.netProfit >= 0 ? '#16a34a' : '#dc2626'}; }
+          @media print { body { padding: 0; } }
+        </style>
+      </head>
+      <body>
+        <div class="business-header">
+          <p class="hebrew-name">לומדות</p>
+          <p class="english-name">Lomdos / Seforim &amp; Books</p>
+          <p class="contact-info">23 Troman Ave. Apt 316, Spring Valley, NY 10977 &bull; 845-445-9166 &bull; cadschwartz@gmail.com</p>
+        </div>
+        <h1>Financial Report: ${period}</h1>
+        <p>Generated: ${new Date().toLocaleDateString()}</p>
+        
+        <div class="summary-grid">
+          <div class="summary-card"><div class="value">$${summary.revenue.toFixed(2)}</div><div class="label">Cash Received</div></div>
+          <div class="summary-card"><div class="value">$${summary.totalOrderValue.toFixed(2)}</div><div class="label">Total Sales</div></div>
+          <div class="summary-card"><div class="value">$${summary.cost.toFixed(2)}</div><div class="label">Book Costs</div></div>
+          <div class="summary-card"><div class="value">$${summary.grossProfit.toFixed(2)}</div><div class="label">Gross Profit</div></div>
+          <div class="summary-card"><div class="value">$${summary.totalExpenses.toFixed(2)}</div><div class="label">Expenses</div></div>
+          <div class="summary-card"><div class="value profit">$${summary.netProfit.toFixed(2)}</div><div class="label">Net Profit</div></div>
+        </div>
+        
+        <h2>Orders</h2>
+        <p>${summary.orderCount} orders in this period</p>
+        <p>Tax-Deductible Expenses: $${summary.taxDeductibleExpenses.toFixed(2)}</p>
+        
+        ${expenseRows ? `
+        <h2>Expenses by Category</h2>
+        <table>
+          <tr><th>Category</th><th style="text-align:right">Amount</th></tr>
+          ${expenseRows}
+        </table>` : ''}
+        
+        ${topBooks ? `
+        <h2>Top 10 Books by Profit</h2>
+        <table>
+          <tr><th>Title</th><th style="text-align:right">Sold</th><th style="text-align:right">Revenue</th><th style="text-align:right">Cost</th><th style="text-align:right">Profit</th></tr>
+          ${topBooks}
+        </table>` : ''}
+      </body>
+      </html>
+    `);
+    printWindow.document.close();
+    printWindow.print();
   };
 
   return (

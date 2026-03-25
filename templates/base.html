@@ -416,6 +416,70 @@
                 margin-left: 0;
             }
         }
+
+        /* ── Print-only business header & footer ── */
+        .print-business-header,
+        .print-business-footer {
+            display: none;
+        }
+
+        @media print {
+            /* Hide app chrome */
+            .sidebar, .page-header, .toast-container, .no-print {
+                display: none !important;
+            }
+            .main-content {
+                margin-left: 0 !important;
+                padding: 0 !important;
+            }
+
+            /* Show business header */
+            .print-business-header {
+                display: flex !important;
+                justify-content: space-between;
+                align-items: center;
+                border-bottom: 3px solid #000;
+                padding-bottom: 10px;
+                margin-bottom: 18px;
+            }
+            .print-header-left {
+                text-align: right;
+            }
+            .print-hebrew-name {
+                font-size: 32px;
+                font-weight: bold;
+                font-family: 'David', 'Times New Roman', serif;
+                line-height: 1.1;
+            }
+            .print-english-name {
+                font-size: 16px;
+                font-weight: bold;
+            }
+            .print-english-subtitle {
+                font-size: 12px;
+                color: #333;
+            }
+            .print-header-right {
+                text-align: left;
+                font-size: 12px;
+                line-height: 1.6;
+            }
+            .print-header-right .print-phone {
+                font-size: 15px;
+                font-weight: bold;
+            }
+
+            /* Show business footer */
+            .print-business-footer {
+                display: block !important;
+                text-align: center;
+                font-size: 11px;
+                color: #666;
+                border-top: 1px solid #ccc;
+                padding-top: 8px;
+                margin-top: 24px;
+            }
+        }
     </style>
     
     {% block extra_css %}{% endblock %}
@@ -522,6 +586,7 @@
 
     <!-- Main Content -->
     <main class="main-content">
+        {% include 'includes/_business_header.html' %}
         <header class="page-header">
             <h1 class="page-title">{% block page_title %}Dashboard{% endblock %}</h1>
             <div class="page-actions">
@@ -541,6 +606,7 @@
             
             {% block content %}{% endblock %}
         </div>
+        {% include 'includes/_business_footer.html' %}
     </main>
 
     <!-- Toast Container -->

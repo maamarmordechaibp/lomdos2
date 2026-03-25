@@ -330,19 +330,40 @@ export default function NewOrder() {
     setIsProcessing(true);
     try {
       let totalBalanceDue = 0;
+      let totalAmountPaid = 0;
       
       // Calculate discount per item proportionally
       const discountRatio = totalDiscount > 0 ? totalDiscount / subtotal : 0;
       
+      // Pre-calculate item totals for proportional payment distribution
+      const itemTotals = cart.map(item => {
+        const itemSubtotal = item.price * item.quantity;
+        const itemDiscount = itemSubtotal * discountRatio;
+        const itemBindingFee = item.wantsBinding ? BINDING_FEE * item.quantity : 0;
+        return itemSubtotal - itemDiscount + itemBindingFee;
+      });
+      const cartTotal = itemTotals.reduce((s, t) => s + t, 0);
+      
+      // Track remaining payment to distribute across items
+      let remainingPayment = amount;
+      
       // Create orders for each item
-      for (const item of cart) {
+      for (let i = 0; i < cart.length; i++) {
+        const item = cart[i];
         const hasStock = item.book.quantity_in_stock >= item.quantity;
         const itemSubtotal = item.price * item.quantity;
         const itemDiscount = itemSubtotal * discountRatio;
         const itemBindingFee = item.wantsBinding ? BINDING_FEE * item.quantity : 0;
         const itemTotal = itemSubtotal - itemDiscount + itemBindingFee;
-        const itemBalanceDue = isFullPayment ? 0 : itemTotal - Math.min(amount, itemTotal);
+        
+        // Distribute payment proportionally
+        const itemPayment = isFullPayment 
+          ? itemTotal 
+          : Math.min(remainingPayment, itemTotal);
+        remainingPayment = Math.max(0, remainingPayment - itemPayment);
+        const itemBalanceDue = Math.max(0, itemTotal - itemPayment);
         totalBalanceDue += itemBalanceDue;
+        totalAmountPaid += itemPayment;
         
         if (hasStock) {
           await fromStock.mutateAsync({ bookId: item.book.id, quantity: item.quantity });
@@ -353,13 +374,13 @@ export default function NewOrder() {
           book_id: item.book.id,
           quantity: item.quantity,
           status: hasStock ? 'picked_up' : 'pending',
-          payment_status: isFullPayment ? 'paid' : (amount > 0 ? 'partial' : 'unpaid'),
+          payment_status: itemPayment >= itemTotal ? 'paid' : (itemPayment > 0 ? 'partial' : 'unpaid'),
           payment_method: method,
-          deposit_amount: isFullPayment ? 0 : amount,
+          deposit_amount: isFullPayment ? 0 : itemPayment,
           final_price: itemTotal,
           actual_cost: (item.book.default_cost || 0) * item.quantity,
           is_bill: false,
-          amount_paid: isFullPayment ? itemTotal : Math.min(amount, itemTotal),
+          amount_paid: itemPayment,
           balance_due: itemBalanceDue,
           total_amount: itemTotal,
           picked_up_at: hasStock ? new Date().toISOString() : null,
@@ -372,11 +393,11 @@ export default function NewOrder() {
         });
         
         // Record payment
-        if (amount > 0) {
+        if (itemPayment > 0) {
           await supabase.from('customer_payments').insert({
             customer_id: customer.id,
             order_id: order.id,
-            amount: isFullPayment ? itemTotal : Math.min(amount, itemTotal),
+            amount: itemPayment,
             payment_method: method,
             transaction_id: transactionId || null,
           });
@@ -392,7 +413,7 @@ export default function NewOrder() {
         });
       }
       
-      // Update customer outstanding balance if there's balance due
+      // Update customer outstanding balance: add balance due from this order
       if (totalBalanceDue > 0) {
         const { data: customerData } = await supabase
           .from('customers')

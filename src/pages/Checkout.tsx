@@ -168,13 +168,14 @@ export default function Checkout() {
     
     setIsProcessing(true);
     try {
-      const discountPerOrder = discountAmount / orders.length;
       let remainingPayment = amount;
       
       for (const order of orders) {
         const originalPrice = order.final_price || 0;
+        // Distribute discount proportionally by price
+        const orderDiscountShare = subtotal > 0 ? (originalPrice / subtotal) * discountAmount : 0;
         const orderFinalPrice = discountAmount > 0
-          ? Math.max(0, originalPrice - discountPerOrder)
+          ? Math.max(0, originalPrice - orderDiscountShare)
           : originalPrice;
         
         const orderBalance = orderFinalPrice - (order.amount_paid || 0);
@@ -185,7 +186,7 @@ export default function Checkout() {
         
         const updateData: any = {
           id: order.id,
-          payment_status: isPaidInFull ? 'paid' : 'partial',
+          payment_status: isPaidInFull ? 'paid' : (newAmountPaid > 0 ? 'partial' : 'unpaid'),
           payment_method: order.payment_method && order.payment_method !== 'gift_card' ? 'mixed' : 'cash',
           amount_paid: newAmountPaid,
           balance_due: Math.max(0, orderFinalPrice - newAmountPaid),
@@ -244,15 +245,15 @@ export default function Checkout() {
     
     setIsProcessing(true);
     try {
-      // Calculate the discount per order (proportionally)
-      const discountPerOrder = discountAmount / orders.length;
+      // Calculate the discount proportionally by price
       let remainingPayment = amount;
       
       for (const order of orders) {
-        // Apply discount to order if any
+        // Apply discount to order proportionally
         const originalPrice = order.final_price || 0;
+        const orderDiscountShare = subtotal > 0 ? (originalPrice / subtotal) * discountAmount : 0;
         const orderFinalPrice = discountAmount > 0 
-          ? Math.max(0, originalPrice - discountPerOrder)
+          ? Math.max(0, originalPrice - orderDiscountShare)
           : originalPrice;
         
         const orderBalance = orderFinalPrice - (order.amount_paid || 0);
@@ -343,16 +344,15 @@ export default function Checkout() {
       if (error) throw error;
       
       if (result.success) {
-        // Calculate the discount per order (proportionally)
-        const discountPerOrder = discountAmount / orders.length;
         let remainingPayment = amount;
         
         // Update orders
         for (const order of orders) {
-          // Apply discount to order if any
+          // Distribute discount proportionally by price
           const originalPrice = order.final_price || 0;
+          const orderDiscountShare = subtotal > 0 ? (originalPrice / subtotal) * discountAmount : 0;
           const orderFinalPrice = discountAmount > 0 
-            ? Math.max(0, originalPrice - discountPerOrder)
+            ? Math.max(0, originalPrice - orderDiscountShare)
             : originalPrice;
           
           const orderBalance = orderFinalPrice - (order.amount_paid || 0);
@@ -363,7 +363,7 @@ export default function Checkout() {
           
           const updateData: any = {
             id: order.id,
-            payment_status: isPaidInFull ? 'paid' : 'partial',
+            payment_status: isPaidInFull ? 'paid' : (newAmountPaid > 0 ? 'partial' : 'unpaid'),
             payment_method: order.payment_method === 'cash' ? 'mixed' : 'card',
             amount_paid: newAmountPaid,
             balance_due: Math.max(0, orderFinalPrice - newAmountPaid),

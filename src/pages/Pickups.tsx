@@ -98,20 +98,23 @@ export default function Pickups() {
         });
       }
       
-      // Update customer's outstanding balance if there's remaining balance
-      if (newBalanceDue > 0) {
-        const { data: customer } = await supabase
-          .from('customers')
-          .select('outstanding_balance')
-          .eq('id', selectedOrder.customer_id)
-          .single();
-        
-        const currentBalance = customer?.outstanding_balance || 0;
-        await supabase
-          .from('customers')
-          .update({ outstanding_balance: currentBalance + newBalanceDue })
-          .eq('id', selectedOrder.customer_id);
-      }
+      // Update customer's outstanding balance
+      // Subtract payment made, add any new remaining balance
+      const { data: customerData } = await supabase
+        .from('customers')
+        .select('outstanding_balance')
+        .eq('id', selectedOrder.customer_id)
+        .single();
+      
+      const currentBalance = customerData?.outstanding_balance || 0;
+      // The order's prior balance_due was already in outstanding_balance.
+      // Remove the old balance_due and add the new one (if any).
+      const priorBalanceDue = (selectedOrder.final_price || 0) - (selectedOrder.amount_paid || 0);
+      const newBalance = Math.max(0, currentBalance - priorBalanceDue + Math.max(0, newBalanceDue));
+      await supabase
+        .from('customers')
+        .update({ outstanding_balance: newBalance })
+        .eq('id', selectedOrder.customer_id);
       
       const change = amount - balanceDue;
       if (change > 0) {

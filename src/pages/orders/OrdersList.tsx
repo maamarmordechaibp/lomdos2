@@ -95,13 +95,22 @@ export default function OrdersList() {
   const handleSaveEdit = async () => {
     if (!editingOrder) return;
     
+    const newFinalPrice = editForm.final_price ? parseFloat(editForm.final_price) : editingOrder.final_price;
+    const currentAmountPaid = editingOrder.amount_paid || 0;
+    const newBalanceDue = Math.max(0, (newFinalPrice || 0) - currentAmountPaid);
+    const newPaymentStatus = currentAmountPaid >= (newFinalPrice || 0) - 0.01
+      ? 'paid'
+      : currentAmountPaid > 0 ? 'partial' : 'unpaid';
+    
     await updateOrder.mutateAsync({
       id: editingOrder.id,
       quantity: editForm.quantity,
       deposit_amount: editForm.deposit_amount,
-      final_price: editForm.final_price ? parseFloat(editForm.final_price) : null,
+      final_price: newFinalPrice,
       actual_cost: editForm.actual_cost ? parseFloat(editForm.actual_cost) : null,
       notes: editForm.notes || null,
+      balance_due: newBalanceDue,
+      payment_status: newPaymentStatus,
     });
     
     setEditingOrder(null);

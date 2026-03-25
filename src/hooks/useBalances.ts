@@ -438,7 +438,8 @@ export function useFinancialSummary(year?: number, month?: number) {
       // Calculate totals
       const totalExpenses = expenses?.reduce((sum, e) => sum + e.amount, 0) || 0;
       const taxDeductibleExpenses = expenses?.filter(e => e.is_tax_deductible).reduce((sum, e) => sum + e.amount, 0) || 0;
-      const grossProfit = revenue - cost;
+      // Use order-level profit (final_price - actual_cost) for consistent accrual-basis calculation
+      const grossProfit = orders?.reduce((sum, o) => sum + ((o.final_price || 0) - (o.actual_cost || 0)), 0) || 0;
       const netProfit = grossProfit - totalExpenses;
       
       // Group expenses by category
